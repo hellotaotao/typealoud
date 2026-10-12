@@ -31,6 +31,27 @@ fn settings_launch_result(code: isize) -> Result<(), String> {
   }
 }
 
+/// Whether this process runs with package identity, i.e. was installed from an
+/// MSIX (the Microsoft Store build). The same exe ships in the NSIS installer,
+/// so this is a runtime check rather than a build flag.
+#[cfg(windows)]
+pub fn has_package_identity() -> bool {
+  use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+
+  let mut length = 0u32;
+  // A zero-length probe: the return code alone tells packaged from unpackaged.
+  let code = unsafe { GetCurrentPackageFullName(&mut length, std::ptr::null_mut()) };
+  package_identity_from_code(code)
+}
+
+fn package_identity_from_code(code: u32) -> bool {
+  const ERROR_SUCCESS: u32 = 0;
+  const ERROR_INSUFFICIENT_BUFFER: u32 = 122;
+  // An unpackaged process gets APPMODEL_ERROR_NO_PACKAGE (15700). Anything
+  // unexpected counts as unpackaged, which keeps the self-updater working.
+  code == ERROR_INSUFFICIENT_BUFFER || code == ERROR_SUCCESS
+}
+
 #[cfg(windows)]
 pub fn copy_to_clipboard(text: &str) -> anyhow::Result<()> {
   use anyhow::Context;
@@ -48,6 +69,14 @@ mod tests {
       let error = settings_launch_result(code).unwrap_err();
       assert!(error.contains(&code.to_string()));
     }
+  }
+
+  #[test]
+  fn only_a_packaged_probe_result_counts_as_package_identity() {
+    assert!(package_identity_from_code(122));
+    assert!(package_identity_from_code(0));
+    assert!(!package_identity_from_code(15700));
+    assert!(!package_identity_from_code(5));
   }
 
   #[test]

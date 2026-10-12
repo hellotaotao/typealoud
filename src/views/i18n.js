@@ -343,6 +343,7 @@
           ready: "v{version} ready — restart to update",
           upToDate: "v{version} — up to date",
           error: "Couldn't check for updates. Try again later.",
+          storeManaged: "v{version} — updated through Microsoft Store",
         },
         usageStats: {
           title: "Anonymous usage statistics",
@@ -928,6 +929,7 @@
           ready: "v{version} 已就绪 — 重启即可更新",
           upToDate: "v{version} — 已是最新",
           error: "检查更新失败，请稍后再试。",
+          storeManaged: "v{version} — 由 Microsoft Store 自动更新",
         },
         usageStats: {
           title: "匿名使用统计",

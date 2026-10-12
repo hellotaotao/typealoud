@@ -1,0 +1,88 @@
+# Builds the Microsoft Store (MSIX) package and uploads it as a workflow
+# artifact, to be submitted by hand in Partner Center (RELEASING.md, "Microsoft
+# Store"). Manual on purpose: a Store submission is a separate decision from a
+# GitHub release, and this must never hold up release.yml's publish job.
+#
+# Identity comes from the repository variables MSIX_IDENTITY_NAME,
+# MSIX_PUBLISHER and MSIX_PUBLISHER_DISPLAY_NAME. Without them the package gets
+# a placeholder identity that the Store won't accept.
+name: Microsoft Store package
+
+on:
+  workflow_dispatch:
+
+jobs:
+  msix:
+    name: MSIX (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install JS tooling (@tauri-apps/cli)
+        run: npm ci
+
+      - name: Build the app
+        env:
+          # Same identity as the release build: clean version badge, usage
+          # statistics enabled (build.rs, usage.rs).
+          SAYTYPE_OFFICIAL_BUILD: "1"
+          SAYTYPE_POSTHOG_KEY: ${{ secrets.SAYTYPE_POSTHOG_KEY }}
+        run: npx tauri build --target x86_64-pc-windows-msvc --no-bundle
+
+      - name: Pack the MSIX
+        env:
+          MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+          MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+        run: node scripts/build-msix.mjs
+
+      # Registers the unpacked layout the way a developer machine would. It
+      # proves Windows accepts the manifest and that the running app sees its
+      # package identity (the "updater:store-managed" log line), which is what
+      # turns the self-updater off.
+      - name: Register and launch the package
+        shell: pwsh
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /t REG_DWORD /f /v AllowDevelopmentWithoutDevLicense /d 1
+          Add-AppxPackage -Register src-tauri\target\msix\layout\AppxManifest.xml
+          [xml]$manifest = Get-Content src-tauri\target\msix\layout\AppxManifest.xml
+          $package = Get-AppxPackage -Name $manifest.Package.Identity.Name
+          if (-not $package) { throw "The package did not register." }
+          $package | Format-List Name, Version, PackageFamilyName, InstallLocation
+          Start-Process "shell:AppsFolder\$($package.PackageFamilyName)!TypeAloud"
+          $packageData = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)"
+          $found = $false
+          foreach ($attempt in 1..30) {
+            Start-Sleep -Seconds 2
+            $logs = Get-ChildItem $packageData -Recurse -Filter *.log -ErrorAction SilentlyContinue
+            if ($logs | Select-String -Pattern "updater:store-managed" -Quiet) { $found = $true; break }
+          }
+          Get-Process TypeAloud -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $found) {
+            Get-ChildItem $packageData -Recurse -ErrorAction SilentlyContinue | Select-Object -First 50 FullName
+            throw "The packaged app never logged updater:store-managed."
+          }
+          Write-Host "The packaged app detected its package identity."
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix
+          path: dist/*.msix
+          if-no-files-found: error

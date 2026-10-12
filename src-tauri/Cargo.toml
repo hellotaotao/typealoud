@@ -55,7 +55,7 @@ enigo = "0.3.0"
 
 [target.'cfg(windows)'.dependencies]
 arboard = { version = "3.6.1", default-features = false }
-windows-sys = { version = "0.61.2", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(unix)'.dependencies]

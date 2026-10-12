@@ -229,6 +229,42 @@ and clutters the releases page. The mirror above already carries each release's 
 `https://typealoud.app/download/releases/<tag>/…` (the tag and file names are in
 `releases/current.json`), which the button can use for mainland visitors.
 
+## Microsoft Store
+
+The Store build is an MSIX wrapping the same exe the NSIS installer ships. The Store signs it during
+certification, so it needs no code-signing certificate and shows no SmartScreen warning; the direct
+downloads stay unsigned. Status: packaging works in CI, nothing has been submitted yet.
+
+**Building.** Run the `Microsoft Store package` workflow by hand (`gh workflow run msix.yml`) and
+download its `msix` artifact. It builds the exe with `tauri build --no-bundle`, packs it with
+`scripts/build-msix.mjs` (manifest template: `build/msix/AppxManifest.template.xml`), then registers
+the unpacked layout on the runner and launches it to confirm Windows accepts the manifest and the app
+sees its package identity. It is separate from `release.yml`, so it can never hold up a release.
+
+**Identity.** After reserving the name in Partner Center, copy the three values from Product
+identity into repository variables (Settings → Variables): `MSIX_IDENTITY_NAME` (Package/Identity/Name),
+`MSIX_PUBLISHER` (Package/Identity/Publisher, the `CN=…` string) and `MSIX_PUBLISHER_DISPLAY_NAME`.
+Without them the package gets a placeholder identity that only works for local testing.
+
+**What differs at run time.** Nothing is compiled differently. `platform::is_store_install` asks
+Windows whether the process has package identity; when it does, `updater.rs` reports the
+`storeManaged` status, never checks `latest.json`, and the update controls disappear. The Store
+version must end in `.0`, so `1.19.3` is submitted as `1.19.3.0`. App data written under `%APPDATA%`
+is redirected into the package's private folder and removed on uninstall, so the Store install and a
+direct install on the same machine don't share settings, History or downloaded models.
+
+**Submission notes.** `runFullTrust` is a restricted capability and Partner Center asks why it is
+needed: the global hold-to-record hotkey and typing into the focused app. Keep it to two or three
+sentences. The listing needs a privacy policy URL (`PRIVACY.md` on the website) and should say that
+the first run downloads the speech model and its inference runtime.
+
+**Testing a package locally** (Windows, Developer Mode on): `node scripts/build-msix.mjs
+--layout-only`, then `Add-AppxPackage -Register src-tauri\target\msix\layout\AppxManifest.xml`.
+
+**Not done yet:** launch at login (a packaged app needs a `StartupTask` in the manifest; Windows
+autostart is a stub in every build today), unplated taskbar icons (`resources.pri`), and a check for
+a missing WebView2 runtime on Windows 10, which an MSIX can't install.
+
 ---
 
 <a id="发布中文"></a>
@@ -414,3 +450,31 @@ GitHub 匿名 API 限额(每小时 60 次)按访客 IP 计算,下载按钮碰不
 版本号的 `TypeAloud-macOS.dmg`,但要多一个 CI 步骤,还会让 releases 页面更乱。上面的镜像已经带着每个
 版本的 DMG,地址是 `https://typealoud.app/download/releases/<tag>/…`(tag 和文件名在
 `releases/current.json` 里),下载按钮可以给大陆访客用这个地址。
+
+## Microsoft Store
+
+商店版是一个 MSIX 包,里面装的就是 NSIS 安装包里的同一个 exe。微软在审核时给它签名,所以不用买代码签名证书,
+也不会弹 SmartScreen 警告;直接下载的安装包仍然没有签名。现状:CI 里能打出包,还没有提交过。
+
+**构建。** 手动运行 `Microsoft Store package` 工作流(`gh workflow run msix.yml`),下载它的 `msix` 产物。它先用
+`tauri build --no-bundle` 编出 exe,再由 `scripts/build-msix.mjs` 打包(清单模板在
+`build/msix/AppxManifest.template.xml`),最后在 runner 上注册并启动一次,确认 Windows 接受这份清单、应用也认出了
+自己的包身份。它和 `release.yml` 分开,不会拖住发版。
+
+**身份信息。** 在 Partner Center 预留名称后,把 Product identity 里的三个值填进仓库变量(Settings → Variables):
+`MSIX_IDENTITY_NAME`(Package/Identity/Name)、`MSIX_PUBLISHER`(Package/Identity/Publisher,`CN=…` 那一串)和
+`MSIX_PUBLISHER_DISPLAY_NAME`。没填的话包里是占位身份,只能本地测试。
+
+**运行时的差别。** 编译上没有任何不同。`platform::is_store_install` 问 Windows 当前进程有没有包身份;有的话
+`updater.rs` 报 `storeManaged` 状态,不再检查 `latest.json`,更新按钮也随之隐藏。商店要求版本号以 `.0` 结尾,所以
+`1.19.3` 提交为 `1.19.3.0`。写到 `%APPDATA%` 的数据会被重定向到包的私有目录,卸载时一并删除,因此同一台机器上的
+商店版和直接下载版不共享设置、History 和已下载的模型。
+
+**提交时注意。** `runFullTrust` 是受限能力,Partner Center 会问用途:全局按住录音的热键,以及向当前应用输入文字。
+写两三句即可。商店页面需要隐私政策链接(官网上的 `PRIVACY.md`),并写明首次使用会下载语音模型和推理运行时。
+
+**本地测试**(Windows,打开开发者模式):`node scripts/build-msix.mjs --layout-only`,然后
+`Add-AppxPackage -Register src-tauri\target\msix\layout\AppxManifest.xml`。
+
+**还没做:** 开机自启(打包应用要在清单里声明 `StartupTask`;目前所有 Windows 版本的自启都还是空实现)、任务栏
+无底板图标(`resources.pri`)、以及 Windows 10 缺 WebView2 运行时的检测(MSIX 没法替用户安装)。

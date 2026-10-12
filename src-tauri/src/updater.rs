@@ -23,7 +23,7 @@ pub struct PendingUpdate {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateStatus {
-  /// idle | checking | downloading | ready | upToDate | error
+  /// idle | checking | downloading | ready | upToDate | error | storeManaged
   pub state: String,
   /// Version of the available/downloaded update, when known.
   pub version: Option<String>,
@@ -93,6 +93,14 @@ fn updater_for(app: &AppHandle) -> tauri_plugin_updater::Result<tauri_plugin_upd
 /// Check the manifest and, if a newer version exists, download it fully.
 /// Returns the final status (also stored + emitted as `update-status`).
 pub async fn check_and_download(app: &AppHandle) -> UpdateStatus {
+  // The Microsoft Store owns updates of its package; ours can't replace files
+  // under WindowsApps anyway.
+  if crate::platform::is_store_install() {
+    let status = UpdateStatus::new("storeManaged", None, None);
+    set_status(app, status.clone());
+    return status;
+  }
+
   // Already downloaded and waiting? Don't re-check or re-download.
   // (Clone the version out so the pending_update guard is released before
   // set_status takes the update_status lock.)
@@ -182,6 +190,13 @@ pub fn install_pending_and_restart(app: &AppHandle) -> Result<(), String> {
 /// Stops once an update is downloaded (the user restarts whenever they like).
 /// Dev builds never self-update.
 pub fn spawn_periodic_checks(app: AppHandle) {
+  if crate::platform::is_store_install() {
+    // Stored so the pages that ask later (`get_update_status`) hide their
+    // update controls.
+    log::info!("updater:store-managed");
+    set_status(&app, UpdateStatus::new("storeManaged", None, None));
+    return;
+  }
   if cfg!(debug_assertions) {
     return;
   }

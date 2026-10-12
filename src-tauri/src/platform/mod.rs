@@ -52,6 +52,15 @@ pub use fallback::*;
 #[cfg(any(windows, test))]
 mod windows;
 
+/// True for the Microsoft Store (MSIX) install on Windows. The Store installs
+/// and updates that package, so the app's own updater stays off there.
+pub fn is_store_install() -> bool {
+  #[cfg(windows)]
+  return windows::has_package_identity();
+  #[cfg(not(windows))]
+  false
+}
+
 /// Run when the OS reports the app was brought to the front. Stored in a
 /// `static` on the platform side (the macOS callback comes from ObjC and has
 /// nowhere to carry Rust state), hence `Send + Sync + 'static`.

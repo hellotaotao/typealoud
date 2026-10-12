@@ -1228,7 +1228,7 @@ function renderUpdateStatus(status) {
   const version = status?.version || "";
   statusEl.title = "";
   checkBtn.disabled = state === "checking" || state === "downloading";
-  checkBtn.classList.toggle("hidden", state === "ready");
+  checkBtn.classList.toggle("hidden", state === "ready" || state === "storeManaged");
   installBtn.classList.toggle("hidden", state !== "ready");
 
   if (state === "checking") {
@@ -1244,6 +1244,9 @@ function renderUpdateStatus(status) {
     statusEl.title = status?.message || "";
   } else if (state === "upToDate") {
     statusEl.textContent = translate("settings.updates.upToDate", { version: currentAppVersion });
+  } else if (state === "storeManaged") {
+    // The Microsoft Store build: the Store installs new versions itself.
+    statusEl.textContent = translate("settings.updates.storeManaged", { version: currentAppVersion });
   } else {
     statusEl.textContent = currentAppVersion ? `v${currentAppVersion}` : "";
   }

@@ -16,7 +16,7 @@ overturning a rule.
 |---|---|
 | Product direction, current priorities, what not to build | `docs/PRODUCT_PATHWAY.md` |
 | Real-device acceptance cases, offline log report | `docs/RELIABILITY_ACCEPTANCE.md` |
-| Releasing, signing, notarization, updater e2e, distribution | `RELEASING.md` |
+| Releasing, signing, notarization, updater e2e, distribution, Microsoft Store | `RELEASING.md` |
 | Local engines: Qwen/Nemotron, llama.cpp worker, chunking, GPU | `docs/local-asr.md` |
 | Audio capture per platform, WebKit findings, no NS/AGC | `docs/audio-capture.md` |
 | Failure, retry and recovery rules | `docs/dictation-recovery.md` |
@@ -146,8 +146,10 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 - `updater.rs` — auto-update: background check of `latest.json` at startup and every 24 h (skipped
   in debug builds; GitHub first, the `typealoud.app/download` mirror first in mainland China
   time zones, see `RELEASING.md` "Distribution"), silent download, a single `update-status` event channel
-  (idle | checking | downloading | ready | upToDate | error); install + restart only on user action
-  (tray entry / settings button). Updates are minisign-verified against the pubkey in
+  (idle | checking | downloading | ready | upToDate | error | storeManaged); install + restart only
+  on user action (tray entry / settings button). The Microsoft Store (MSIX) install is the same exe:
+  it detects its package identity at run time (`platform::is_store_install`), reports
+  `storeManaged` and never self-updates. Updates are minisign-verified against the pubkey in
   `tauri.conf.json`. `createUpdaterArtifacts` lives only in `tauri.release.conf.json` (CI) and
   `tauri.updater-e2e.conf.json` (localhost harness), so local builds never need the key. Design:
   `docs/superpowers/specs/2026-07-13-auto-update-design.md`.

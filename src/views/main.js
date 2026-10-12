@@ -700,6 +700,10 @@ function renderSidebarVersion() {
   } else if (updateStatus.state === "checking") {
     action.textContent = t("update.checkingShort");
     row.title = "";
+  } else if (updateStatus.state === "storeManaged") {
+    // Microsoft Store build: nothing to check from here.
+    action.textContent = "";
+    row.title = "";
   } else {
     action.textContent = t("update.checkShort");
     row.title = "";
