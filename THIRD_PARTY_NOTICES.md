@@ -1,6 +1,6 @@
 # Third-party notices
 
-TypeAloud itself is licensed under PolyForm Noncommercial 1.0.0 (see `README.md`). The components
+TypeAloud itself is licensed under GPL-3.0 (see `LICENSE`). The components
 below keep their own licenses.
 
 ## Shipped inside the app

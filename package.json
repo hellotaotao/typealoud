@@ -21,7 +21,7 @@
     "transcription"
   ],
   "author": "Tao",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "GPL-3.0-only",
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1"
   }

@@ -2,9 +2,9 @@
 
 **English** · [中文说明 ↓](#中文)
 
-A voice input method built with **Tauri** that lets you dictate text in any application using a global hotkey and AI transcription.
+Free, open-source dictation for Mac and Windows. Hold a key, speak, and the text lands at your cursor. Transcription runs on your own computer, and it holds up when you mix Chinese and English or talk for minutes at a time.
 
-Project direction: [Product pathway](docs/PRODUCT_PATHWAY.md) · [Reliability acceptance](docs/RELIABILITY_ACCEPTANCE.md).
+**[Download for macOS / Windows](https://github.com/hellotaotao/typealoud/releases/latest)** · [Website](https://typealoud.app) · No account, no subscription, no word limit.
 
 ## Features
 
@@ -92,8 +92,10 @@ tccutil reset Microphone com.tao.saytype
 
 ## License
 
-PolyForm Noncommercial 1.0.0
-https://polyformproject.org/licenses/noncommercial/1.0.0/
+GPL-3.0. See [LICENSE](LICENSE). Bundled and downloaded components keep their own licenses, listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Project direction: [Product pathway](docs/PRODUCT_PATHWAY.md) · [Reliability acceptance](docs/RELIABILITY_ACCEPTANCE.md) (both in Chinese).
 
 ---
 
@@ -103,9 +105,9 @@ https://polyformproject.org/licenses/noncommercial/1.0.0/
 
 [↑ English](#typealoud)
 
-一款基于 **Tauri** 构建的语音输入法,让你通过全局快捷键和 AI 转写,在任意应用中用口述输入文字。
+免费、开源的语音输入,支持 Mac 和 Windows。按住快捷键说话,松手后文字出现在光标处。转写在你自己的电脑上完成,中英文混着说、一口气说几分钟都稳。
 
-项目方向:[产品路径](docs/PRODUCT_PATHWAY.md) · [可靠性验收](docs/RELIABILITY_ACCEPTANCE.md)。
+**[下载 macOS / Windows 版](https://github.com/hellotaotao/typealoud/releases/latest)** · [官网](https://typealoud.app) · 不用注册,不收订阅,不限字数。
 
 ## 功能特性
 
@@ -191,5 +193,6 @@ tccutil reset Microphone com.tao.saytype
 
 ## 许可证
 
-PolyForm Noncommercial 1.0.0
-https://polyformproject.org/licenses/noncommercial/1.0.0/
+GPL-3.0,见 [LICENSE](LICENSE)。随附和下载的第三方组件沿用各自的许可证,见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+项目方向:[产品路径](docs/PRODUCT_PATHWAY.md) · [可靠性验收](docs/RELIABILITY_ACCEPTANCE.md)。
