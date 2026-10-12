@@ -1,0 +1,11 @@
+name: Idea / 建议
+description: Something you wish TypeAloud did / 希望它能做到的事
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like? / 你希望怎样?
+      description: Tell us what you were trying to do when you wished for it. 说说当时想做什么。
+    validations:
+      required: true

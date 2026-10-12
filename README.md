@@ -1,4 +1,4 @@
-# SayType
+# TypeAloud
 
 **English** · [中文说明 ↓](#中文)
 
@@ -24,13 +24,13 @@ Project direction: [Product pathway](docs/PRODUCT_PATHWAY.md) · [Reliability ac
 
 ## Download
 
-Grab the latest installer from the [Releases page](https://github.com/hellotaotao/saytype/releases/latest):
+Grab the latest installer from the [Releases page](https://github.com/hellotaotao/typealoud/releases/latest):
 
 - **macOS** — the `.dmg`
 - **Windows** — the `_x64-setup.exe` (or `.msi`)
 - **Linux** — the `.AppImage` (portable), `.deb` (Debian/Ubuntu), or `.rpm` (Fedora/RHEL)
 
-Once installed, SayType keeps itself up to date. The other files on the Releases page (`*.sig`, `latest.json`, `*.app.tar.gz`) are used by the built-in auto-updater — you don't need to download them.
+Once installed, TypeAloud keeps itself up to date. The other files on the Releases page (`*.sig`, `latest.json`, `*.app.tar.gz`) are used by the built-in auto-updater — you don't need to download them.
 
 ## Installation / Development
 
@@ -60,7 +60,7 @@ Releases are built, signed, and published automatically when a `v*` tag is pushe
 
 ## Usage
 
-1. Launch SayType
+1. Launch TypeAloud
 2. Complete the first-use guide, or configure an engine and permissions in Settings; wait until the selected engine is ready
 3. Hold down Ctrl+Shift to start recording
 4. Speak while holding the keys
@@ -74,11 +74,11 @@ Access settings through the tray menu or main window to configure:
 - Transcription engine: Qwen3-ASR (0.6B, or the larger 1.7B) or Nemotron 3.5 local model (no key; Nemotron supports Apple Silicon and Windows x64), or optional Groq / OpenAI with an API key
 - Transcription language (Nemotron and cloud providers); custom dictionary (words guide cloud providers; automatic replacements apply to every engine)
 
-SayType records from the system's default input device; change it in your OS sound settings.
+TypeAloud records from the system's default input device; change it in your OS sound settings.
 
 ## Privacy
 
-Local engines keep audio on your computer. SayType sends anonymous daily usage counts (how many
+Local engines keep audio on your computer. TypeAloud sends anonymous daily usage counts (how many
 dictations and characters, engine, app and OS version; never audio or text). Turn them off in
 Settings, where you can also view exactly what is sent. Every connection the app makes is listed in
 [PRIVACY.md](PRIVACY.md).
@@ -99,9 +99,9 @@ https://polyformproject.org/licenses/noncommercial/1.0.0/
 
 <a id="中文"></a>
 
-# SayType(中文)
+# TypeAloud(中文)
 
-[↑ English](#saytype)
+[↑ English](#typealoud)
 
 一款基于 **Tauri** 构建的语音输入法,让你通过全局快捷键和 AI 转写,在任意应用中用口述输入文字。
 
@@ -125,13 +125,13 @@ https://polyformproject.org/licenses/noncommercial/1.0.0/
 
 ## 下载
 
-从 [Releases 页面](https://github.com/hellotaotao/saytype/releases/latest) 下载对应平台的安装包:
+从 [Releases 页面](https://github.com/hellotaotao/typealoud/releases/latest) 下载对应平台的安装包:
 
 - **macOS** — `.dmg`
 - **Windows** — `_x64-setup.exe`(或 `.msi`)
 - **Linux** — `.AppImage`(免安装)、`.deb`(Debian/Ubuntu)或 `.rpm`(Fedora/RHEL)
 
-安装后 SayType 会自动保持更新。Releases 页面上其余文件(`*.sig`、`latest.json`、`*.app.tar.gz`)是自动更新用的,无需下载。
+安装后 TypeAloud 会自动保持更新。Releases 页面上其余文件(`*.sig`、`latest.json`、`*.app.tar.gz`)是自动更新用的,无需下载。
 
 ## 安装 / 开发
 
@@ -161,7 +161,7 @@ npm run build:linux
 
 ## 使用方法
 
-1. 启动 SayType
+1. 启动 TypeAloud
 2. 完成首次引导，或在设置中配置引擎与权限；等当前引擎就绪后再录音
 3. 按住 Ctrl+Shift 开始录音
 4. 按住按键的同时说话
@@ -176,11 +176,11 @@ npm run build:linux
 - 转写引擎:Qwen3-ASR(0.6B,或更大的 1.7B)或 Nemotron 3.5 本地模型(无需 key;Nemotron 支持 Apple Silicon 和 Windows x64),或可选的云端服务(Groq / OpenAI)+ API key
 - 转写语言(Nemotron 和云端服务商);自定义词典(仅云端服务商)
 
-SayType 使用系统默认的输入设备录音;要换麦克风,请在系统的声音设置里修改。
+TypeAloud 使用系统默认的输入设备录音;要换麦克风,请在系统的声音设置里修改。
 
 ## 隐私
 
-本地引擎下录音不离开电脑。SayType 每天发送一次匿名使用统计(听写次数和字数、引擎、软件和系统版本;不含录音和文字),可以在设置里关闭,也能在那里查看发送的原始内容。App 的全部网络连接见 [PRIVACY.md](PRIVACY.md#隐私说明)。
+本地引擎下录音不离开电脑。TypeAloud 每天发送一次匿名使用统计(听写次数和字数、引擎、软件和系统版本;不含录音和文字),可以在设置里关闭,也能在那里查看发送的原始内容。App 的全部网络连接见 [PRIVACY.md](PRIVACY.md#隐私说明)。
 
 ## 重复测试时重置 macOS 权限
 

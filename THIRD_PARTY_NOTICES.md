@@ -1,6 +1,6 @@
 # Third-party notices
 
-SayType itself is licensed under PolyForm Noncommercial 1.0.0 (see `README.md`). The components
+TypeAloud itself is licensed under PolyForm Noncommercial 1.0.0 (see `README.md`). The components
 below keep their own licenses.
 
 ## Shipped inside the app
@@ -22,7 +22,7 @@ are MIT and/or Apache-2.0. As of 1.15.1 the exceptions are the ICU4X crates (`ic
 and related; Unicode-3.0), `rustls-webpki` and `untrusted` (ISC), `subtle`, `alloc-stdlib` and
 `alloc-no-stdlib` (BSD-3-Clause), `zlib-rs` (Zlib), `webpki-roots` (CDLA-Permissive-2.0), and
 `cssparser`, `cssparser-macros`, `selectors`, `dtoa-short` and `option-ext` (MPL-2.0). MPL-2.0
-applies file by file; SayType uses those crates unmodified, and their source is on crates.io.
+applies file by file; TypeAloud uses those crates unmodified, and their source is on crates.io.
 The Windows clipboard dependencies `clipboard-win` and `error-code` use the Boost Software
 License 1.0 (BSL-1.0). To
 list every crate with its license:
@@ -35,7 +35,7 @@ cargo metadata --format-version 1 --manifest-path src-tauri/Cargo.toml \
 
 ## Downloaded on demand
 
-Nothing in this section is in the installer. SayType downloads it from the upstream publisher when
+Nothing in this section is in the installer. TypeAloud downloads it from the upstream publisher when
 the user sets up the engine that needs it.
 
 ### Qwen3-ASR (default local engine)
@@ -50,7 +50,7 @@ the user sets up the engine that needs it.
 
 ### Nemotron
 
-SayType does not ship the Nemotron runtime. When the user enables the engine it
+TypeAloud does not ship the Nemotron runtime. When the user enables the engine it
 downloads NVIDIA's own **NeMo-Speech.cpp v0.1.0** release archive (macOS arm64
 Metal, or Windows x86_64 CPU) and verifies it against a pinned sha256. Those
 archives carry the licenses of everything inside them under
@@ -69,7 +69,7 @@ archives carry the licenses of everything inside them under
   pinned Hugging Face revision and is licensed under OpenMDW-1.1. See
   <https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b>.
 
-SayType previously built its own macOS runtime from the same commit. That is
+TypeAloud previously built its own macOS runtime from the same commit. That is
 gone: the pinned commit *is* upstream's v0.1.0 tag, and upstream's archives are
 already self-contained and relocatable, so the private build only re-derived
 packaging work that upstream had done — the same conclusion recorded in

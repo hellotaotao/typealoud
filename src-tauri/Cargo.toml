@@ -4,7 +4,7 @@ version = "1.19.3"
 description = "Voice input method software"
 authors = ["Tao"]
 license = "PolyForm-Noncommercial-1.0.0"
-repository = "https://github.com/hellotaotao/saytype"
+repository = "https://github.com/hellotaotao/typealoud"
 edition = "2021"
 rust-version = "1.82"
 

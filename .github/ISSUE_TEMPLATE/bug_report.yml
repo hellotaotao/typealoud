@@ -1,0 +1,42 @@
+name: Bug report / 问题反馈
+description: Something went wrong / 哪里不对劲
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / 发生了什么?
+      description: What you did, what you expected, what you got. 中文或英文都可以。
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: TypeAloud version / 版本号
+      description: Bottom-left of the main window / 主窗口左下角
+      placeholder: v1.19.3
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System / 系统
+      placeholder: macOS 15.3, M2, 16 GB
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Engine / 引擎
+      options:
+        - Qwen 0.6B
+        - Qwen 1.7B
+        - Nemotron
+        - OpenAI
+        - Groq
+        - Not sure / 不确定
+  - type: input
+    id: target
+    attributes:
+      label: App you were typing into / 当时在哪个应用里输入
+      placeholder: Chrome, VS Code, WeChat...
