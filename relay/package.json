@@ -1,0 +1,11 @@
+{
+  "name": "typealoud-relay",
+  "private": true,
+  "type": "module",
+  "description": "Forwards dictated text to the polish model. Stores counters only, never text.",
+  "license": "GPL-3.0-only",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  }
+}

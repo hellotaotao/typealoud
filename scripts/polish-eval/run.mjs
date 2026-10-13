@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Runs the polish prompt over a set of dictation cases and prints each result with two
+// Runs the relay's polish prompt (relay/lib/prompt.js) over a set of dictation cases and prints each result with two
 // fidelity numbers, so a prompt or model change can be compared against the last one.
 //
 //   OPENAI_API_KEY=... node scripts/polish-eval/run.mjs [--cases file] [--prompt file]
@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { POLISH_PROMPT, wrapTranscript } from '../../relay/lib/prompt.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).join(' ').split('--').filter(Boolean)
@@ -24,7 +25,7 @@ if (!key) {
 const model = args.model ?? 'gpt-6-luna';
 const tier = args.tier ?? 'default';
 const runs = Number(args.runs ?? 1);
-const system = readFileSync(args.prompt ?? join(here, 'prompt.txt'), 'utf8').trim();
+const system = args.prompt ? readFileSync(args.prompt, 'utf8').trim() : POLISH_PROMPT;
 const cases = JSON.parse(readFileSync(args.cases ?? join(here, 'cases.json'), 'utf8'));
 
 const lettersOf = (text) => Array.from(text.replace(/[^\p{L}\p{N}]+/gu, ''));
@@ -49,7 +50,7 @@ async function polish(text) {
     // Reasoning stays off: it adds seconds and its tokens are billed as output.
     body: JSON.stringify({
       model, reasoning_effort: 'none', service_tier: tier,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: `<转写>\n${text}\n</转写>` }],
+      messages: [{ role: 'system', content: system }, { role: 'user', content: wrapTranscript(text) }],
     }),
   });
   const body = await response.json();

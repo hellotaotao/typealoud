@@ -3,7 +3,7 @@
   "version": "1.19.3",
   "description": "Voice input method software built with Tauri",
   "scripts": {
-    "test": "node --test \"src/views/*.test.mjs\" \"scripts/*.test.mjs\"",
+    "test": "node --test \"src/views/*.test.mjs\" \"scripts/*.test.mjs\" \"relay/test/*.test.js\"",
     "start": "tauri dev",
     "dev": "tauri dev",
     "version:tauri:patch": "node scripts/bump-tauri-version.js",
