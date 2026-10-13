@@ -3,6 +3,7 @@ const path = require("path");
 
 const root = path.resolve(__dirname, "..");
 const packageJsonPath = path.join(root, "package.json");
+const packageLockPath = path.join(root, "package-lock.json");
 const cargoTomlPath = path.join(root, "src-tauri", "Cargo.toml");
 const cargoLockPath = path.join(root, "src-tauri", "Cargo.lock");
 const tauriConfigPath = path.join(root, "src-tauri", "tauri.conf.json");
@@ -72,6 +73,13 @@ function main() {
   packageJson.version = nextVersion;
   writeJson(packageJsonPath, packageJson);
 
+  // The lockfile repeats this package's own version twice. Left behind, every
+  // later `npm install` rewrites it and leaves a stray diff.
+  const packageLock = readJson(packageLockPath);
+  packageLock.version = nextVersion;
+  packageLock.packages[""].version = nextVersion;
+  writeJson(packageLockPath, packageLock);
+
   const tauriConfig = readJson(tauriConfigPath);
   tauriConfig.version = nextVersion;
   writeJson(tauriConfigPath, tauriConfig);
@@ -81,7 +89,7 @@ function main() {
 
   console.log(
     `Set version ${currentVersion} -> ${nextVersion} ` +
-      "(package.json, tauri.conf.json, Cargo.toml, Cargo.lock)"
+      "(package.json, package-lock.json, tauri.conf.json, Cargo.toml, Cargo.lock)"
   );
 }
 
