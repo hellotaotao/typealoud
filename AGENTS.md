@@ -133,7 +133,8 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   - Chunks stay ≤ 75 s so every chunk maps to ctx 2048 and one worker serves the whole session.
   - Drain stdout and stderr concurrently. Partial text is visible progress, not streaming ASR.
   - Trust an extracted runtime only when its `.saytype-runtime-sha256` stamp matches.
-  - Qwen gets neither the language setting nor the dictionary prompt (replacement rules still
+  - Qwen gets neither the language setting nor the dictionary prompt (term matching and replacement
+    rules still
     apply to its final text).
   - GPU (Windows) is a separate Vulkan pack and `auto` resolves to CPU. A failing GPU worker
     disables GPU for the process and the same recording retries on CPU.
@@ -184,6 +185,14 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   Dictionary page). Plain entries and the wanted side of `heard => wanted` rules form the cloud
   prompt; the rules rewrite every engine's final text after `finalize_transcription`. Users never
   type that syntax: the page edits rules in a two-field "Automatic replacements" form.
+- `terms.rs` — corrects every engine's final text against known spellings: the built-in list in
+  `data/builtin-terms.txt` plus the dictionary's plain entries and rule targets (the user's win). It
+  runs last, after the replacement rules. A heard form is rewritten when it equals a term apart from
+  case and spacing, or is one letter off (two for terms of 8+ letters). **Keep it conservative:** a
+  miss can be fixed later, a wrong rewrite cannot. Anything that reads as ordinary English stays
+  ("Cloud", "cursor", "linked in"), judged by the embedded `data/english-words.txt`; identifiers,
+  paths and URLs are skipped. A sound-alike made of real words ("parrot kit") belongs in
+  `scrub.rs`'s `correct_known_terms` or a user rule, not here.
 - `filler.rs` — removes 嗯/呃 (and a standalone 额) together with their pause punctuation, keeping
   the strongest mark. A filler inside quotation marks (quoted speech is verbatim) or one that is
   listed, named or used as a word stays; when unsure, keep it. 啊/呀/哦 are never removed. Rules and the real transcripts behind them are in its header.

@@ -32,12 +32,14 @@ fn split_rule(entry: &str) -> Option<(&str, &str)> {
   })
 }
 
+/// The spellings the user wants: plain entries and the wanted side of rules.
+pub fn terms(text: &str) -> Vec<&str> {
+  entries(text).map(|entry| split_rule(entry).map_or(entry, |(_, wanted)| wanted)).collect()
+}
+
 /// The terms cloud engines get as a prompt, comma-separated.
 pub fn prompt_terms(text: &str) -> String {
-  entries(text)
-    .map(|entry| split_rule(entry).map_or(entry, |(_, wanted)| wanted))
-    .collect::<Vec<_>>()
-    .join(", ")
+  terms(text).join(", ")
 }
 
 /// Compile the replacement rules, longest heard side first so a longer rule

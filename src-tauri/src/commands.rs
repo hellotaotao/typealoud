@@ -947,25 +947,27 @@ impl Drop for ActiveTranscriptionGuard<'_> {
 // Called only when the whole result is ready, including assembled dictations
 // and manual History retries. Formatting is shared by persistence and insertion.
 fn prepare_final_transcription(raw: &str) -> String {
-  let (options, replacements) = match settings::read_config() {
+  let (options, dictionary) = match settings::read_config() {
     Ok(config) => (
       crate::scrub::FinalTextOptions {
         remove_fillers: config.remove_filler_words,
         merge_spelled_letters: config.merge_spelled_letters,
       },
-      crate::dictionary::replacements(&config.dictionary),
+      config.dictionary,
     ),
     Err(error) => {
       // Optional formatting must not discard a completed transcription or
       // guess that a user who disabled a setting wants it enabled again.
       log::warn!("could not read final text settings; skipping optional formatting: {error:#}");
-      (crate::scrub::FinalTextOptions { remove_fillers: false, merge_spelled_letters: false }, Vec::new())
+      (crate::scrub::FinalTextOptions { remove_fillers: false, merge_spelled_letters: false }, String::new())
     }
   };
-  // The user's rules run last, so they also see merged letters and can
-  // override a built-in correction.
+  // The user's rules run after the built-in cleanup, so they also see merged
+  // letters and can override a built-in correction. Term matching comes last
+  // and leaves a rule's wanted spelling alone, because that spelling is a term.
   let text = crate::scrub::finalize_transcription(raw, options);
-  crate::dictionary::apply_replacements(&text, &replacements)
+  let text = crate::dictionary::apply_replacements(&text, &crate::dictionary::replacements(&dictionary));
+  crate::terms::Terms::new(&crate::dictionary::terms(&dictionary)).correct(&text)
 }
 
 fn record_successful_transcription(

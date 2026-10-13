@@ -1,0 +1,173 @@
+# Built-in spellings for names the local engines write with the wrong case,
+# spacing or a letter or two off. One term per line, written the way it should
+# appear. `terms.rs` decides when a heard form is close enough; a term that is
+# also an ordinary word (Cursor, Linear, Swift) is only ever protected, never
+# forced. A user's dictionary entry wins over a line here.
+
+# AI models, labs and tools
+Claude
+Claude Code
+Anthropic
+OpenAI
+ChatGPT
+GPT
+Codex
+Gemini
+DeepSeek
+Qwen
+Llama
+Mistral
+Perplexity
+Copilot
+Cursor
+Windsurf
+Ollama
+LM Studio
+Hugging Face
+llama.cpp
+MCP
+LLM
+RAG
+
+# Speech
+Whisper
+Wispr Flow
+Typeless
+Superwhisper
+Parakeet
+Nemotron
+ElevenLabs
+Deepgram
+AssemblyAI
+sherpa-onnx
+ONNX
+
+# ML stacks and GPUs
+PyTorch
+TensorFlow
+NVIDIA
+CUDA
+Vulkan
+
+# Code hosting and editors
+GitHub
+GitLab
+Bitbucket
+VS Code
+Xcode
+JetBrains
+IntelliJ
+PyCharm
+Neovim
+tmux
+iTerm
+Homebrew
+
+# Languages, runtimes and package managers
+JavaScript
+TypeScript
+Python
+Rust
+Golang
+Kotlin
+Swift
+SwiftUI
+Node.js
+Deno
+Bun
+npm
+pnpm
+Yarn
+Vite
+webpack
+
+# Frameworks
+React
+Next.js
+Vue
+Nuxt
+Svelte
+SvelteKit
+Angular
+Tailwind
+Tauri
+Electron
+Flutter
+Django
+FastAPI
+Flask
+Laravel
+
+# Data
+PostgreSQL
+Postgres
+MySQL
+SQLite
+MongoDB
+Redis
+Supabase
+Firebase
+Neon
+Prisma
+Drizzle
+GraphQL
+gRPC
+
+# Hosting, cloud and operating systems
+Vercel
+Netlify
+Cloudflare
+AWS
+Azure
+Kubernetes
+Docker
+Terraform
+Nginx
+Linux
+Ubuntu
+Debian
+macOS
+iOS
+iPadOS
+
+# Products
+PostHog
+Sentry
+Datadog
+Grafana
+Stripe
+Shopify
+Notion
+Figma
+Slack
+Discord
+Linear
+Jira
+Zapier
+Airtable
+YouTube
+TikTok
+LinkedIn
+WhatsApp
+WeChat
+Telegram
+Reddit
+Hacker News
+Product Hunt
+Substack
+
+# Protocols and formats
+OAuth
+JWT
+JSON
+YAML
+WebSocket
+WebRTC
+WebKit
+Chromium
+WebAssembly
+HTTPS
+localhost
+API
+SDK
+CLI

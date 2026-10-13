@@ -10,6 +10,7 @@ below keep their own licenses.
 | [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) | 1.27.0 | MIT | `src/views/vendor/vad/ort.wasm.min.js`, `ort-wasm-simd-threaded.mjs`, `ort-wasm-simd-threaded.wasm` |
 | [@ricky0123/vad-web](https://github.com/ricky0123/vad) | 0.0.30 | ISC | `src/views/vendor/vad/bundle.min.js` |
 | [Silero VAD](https://github.com/snakers4/silero-vad) legacy model, as packaged by vad-web | — | MIT | `src/views/vendor/vad/silero_vad_legacy.onnx` |
+| Webster's Second International word list (`web2`), lowercase entries, as distributed with FreeBSD and macOS in `/usr/share/dict` | 1934 | Public domain (copyright lapsed) | `src-tauri/src/data/english-words.txt` |
 | [Material Icons](https://github.com/google/material-design-icons) font | — | Apache-2.0 | `src/views/fonts/MaterialIcons-Regular.woff2` |
 | [sysinfo](https://github.com/GuillaumeGomez/sysinfo) | 0.33.1 | MIT | Native hardware detection; `system` feature only, pinned in `src-tauri/Cargo.lock` |
 | [arboard](https://github.com/1Password/arboard) | 3.6.1 | MIT OR Apache-2.0 | Windows-only, explicit Unicode clipboard copy; default/image features disabled |

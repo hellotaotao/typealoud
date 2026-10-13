@@ -72,7 +72,7 @@ Releases are built, signed, and published automatically when a `v*` tag is pushe
 
 Access settings through the tray menu or main window to configure:
 - Transcription engine: Qwen3-ASR (0.6B, or the larger 1.7B) or Nemotron 3.5 local model (no key; Nemotron supports Apple Silicon and Windows x64), or optional Groq / OpenAI with an API key
-- Transcription language (Nemotron and cloud providers); custom dictionary (words guide cloud providers; automatic replacements apply to every engine)
+- Transcription language (Nemotron and cloud providers); custom dictionary (words guide cloud providers and correct near-miss spellings from every engine; automatic replacements apply to every engine)
 
 TypeAloud records from the system's default input device; change it in your OS sound settings.
 

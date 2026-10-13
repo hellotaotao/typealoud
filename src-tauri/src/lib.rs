@@ -16,6 +16,7 @@ mod platform;
 mod recording_archive;
 mod settings;
 mod state;
+mod terms;
 mod tray;
 mod updater;
 mod usage;
