@@ -33,7 +33,7 @@ overturning a rule.
 npm install            # Install JS tooling (only @tauri-apps/cli)
 npm run dev            # Run the app in dev mode (tauri dev)
 npm start              # Alias for tauri dev
-npm test               # All src/views/*.test.mjs, scripts/*.test.mjs and relay/test/*.test.js (CI uses the same entry)
+npm test               # All src/views/*.test.mjs and scripts/*.test.mjs (CI uses the same entry)
 cargo test --manifest-path src-tauri/Cargo.toml   # Rust unit tests
 
 npm run build          # Build for the current host (on macOS also archives the dmg to dist/)
@@ -224,20 +224,14 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   (e.g. `transcribe-audio`) to Tauri commands (`transcribe_audio`) and event listeners.
 - `i18n.js` — all UI strings (add new copy here), including the `RETRY_*` renderer.
 
-### Polish relay (`relay/`)
+### Polish relay (in the website repository)
 
-A separate Vercel project (root directory `relay/`), not part of the desktop app: `POST /v1/polish`
-forwards dictated text to the polish model and returns the cleaned text. Not deployed yet and the
-app does not call it yet; design and measurements are in
-`docs/superpowers/specs/2026-10-13-cloud-polish-design.md`. **Invariants:**
-
-- The prompt, model and parameters are fixed on the server (`lib/prompt.js`, `lib/openai.js`), so
-  the endpoint can only polish. Reasoning stays `none`.
-- Dictated text is never logged or stored. The store holds counters only, and the client address
-  only as a salted hash. `test/handler.test.js` checks both.
-- Limits (`lib/limits.js`) are checked before the model is called; a store outage or a spent
-  monthly budget answers 503, never an unmetered call. A failed call charges no allowance.
-- After changing the prompt, compare with `node scripts/polish-eval/run.mjs --runs 3`.
+`POST https://typealoud.app/v1/polish` forwards dictated text to the polish model and returns the
+cleaned text. Its code, prompt, limits and eval cases live in the public `hellotaotao/saytype-web`
+repository (`api/polish.js`, `relay/`, `scripts/polish-eval/`), which is the Vercel project behind
+typealoud.app. The app does not call it yet. Design and measurements:
+`docs/superpowers/specs/2026-10-13-cloud-polish-design.md`. The relay never stores or logs text,
+and its prompt and model parameters are fixed on the server; keep both true when changing it.
 
 ### Engine selection and onboarding invariants
 
