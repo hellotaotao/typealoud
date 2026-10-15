@@ -12,7 +12,7 @@ only identifies `tauri dev`, not local *packaged* builds.
 ## Decisions
 
 - **Fail-safe channel**: default is `dev`; only builds where CI injected
-  `SAYTYPE_OFFICIAL_BUILD=1` (release.yml → tauri-action env) compile as
+  `TYPEALOUD_OFFICIAL_BUILD=1` (release.yml → tauri-action env) compile as
   `official`. A local build can never masquerade as a release.
 - **Semver untouched**: `tauri.conf.json`/`Cargo.toml` versions get no suffix,
   so tauri-plugin-updater's version comparison is unaffected. The dev marker is

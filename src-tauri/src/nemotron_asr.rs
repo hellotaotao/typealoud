@@ -136,7 +136,7 @@ fn runtime_archive_path(base: &Path) -> PathBuf {
 }
 
 fn runtime_stamp_path(base: &Path) -> PathBuf {
-  runtime_dir(base).join(".saytype-runtime-sha256")
+  runtime_dir(base).join(crate::local_asr::RUNTIME_STAMP_FILE)
 }
 
 fn model_path(base: &Path) -> PathBuf {
@@ -208,7 +208,7 @@ fn runtime_ready_at(base: &Path) -> bool {
     .map(|metadata| metadata.is_file())
     .unwrap_or(false)
     && is_executable(&executable)
-    && fs::read_to_string(runtime_stamp_path(base))
+    && crate::local_asr::read_runtime_stamp(&runtime_stamp_path(base))
       .map(|stamp| Some(stamp.trim()) == RUNTIME.as_ref().map(|spec| spec.asset.sha256))
       .unwrap_or(false)
 }

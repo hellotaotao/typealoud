@@ -1,4 +1,4 @@
-# Neural VAD for SayType — Design
+# Neural VAD for TypeAloud — Design
 
 **Date:** 2026-06-21 · **Branch:** `feat/neural-vad` · **Status:** implemented (`1e13fd1`–`3b8f29a`); design record, later changes are not reflected here
 

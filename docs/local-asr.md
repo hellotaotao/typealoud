@@ -109,7 +109,7 @@ have since been discarded. The figures in this section are what was kept from th
 - Downloads resume with HTTP Range, keep the `.part` file on cancel, and are sha256-checked. The app
   fetches the archive itself, so there is no quarantine attribute and Gatekeeper never prompts.
 - The extracted runtime is stamped with its archive's sha256
-  (`bin/<LLAMA_BUILD>/.saytype-runtime-sha256`) and re-extracted on mismatch. A CLI being present
+  (`bin/<LLAMA_BUILD>/.typealoud-runtime-sha256`) and re-extracted on mismatch. A CLI being present
   says nothing about which archive produced it.
 - Assets are separated by canonical model id, and model identity is part of worker reuse, so
   switching between 0.6B and 1.7B never reuses the other model's worker.

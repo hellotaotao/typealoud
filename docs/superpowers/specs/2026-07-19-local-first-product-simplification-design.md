@@ -45,7 +45,7 @@
 
 ## 1. 背景
 
-SayType 最初以 BYOK 云端转写为主：音频不经过 SayType 自有服务器，而是直接发送到用户选择并信任的 Groq 或 OpenAI。随后加入的本地 Qwen3-ASR 在 Apple Silicon 真机上表现良好，具有无需账号、无需 API key、无按分钟费用和音频不离开设备等优势，因此已经具备成为默认主路径的条件。
+TypeAloud 最初以 BYOK 云端转写为主：音频不经过 TypeAloud 自有服务器，而是直接发送到用户选择并信任的 Groq 或 OpenAI。随后加入的本地 Qwen3-ASR 在 Apple Silicon 真机上表现良好，具有无需账号、无需 API key、无按分钟费用和音频不离开设备等优势，因此已经具备成为默认主路径的条件。
 
 当前产品只完成了“局部 local-first”：
 
@@ -56,11 +56,11 @@ SayType 最初以 BYOK 云端转写为主：音频不经过 SayType 自有服务
 - 翻译快捷键让本地模式在某个隐蔽分支中仍依赖云端 key；
 - README、Dictionary 和设置文案仍以云端能力为中心。
 
-结果是用户必须理解 SayType 的内部 provider 架构，而不是直接完成“按住说话，松手输入”。
+结果是用户必须理解 TypeAloud 的内部 provider 架构，而不是直接完成“按住说话，松手输入”。
 
 ## 2. 产品定义
 
-SayType 是一个 **local-first voice input tool**：
+TypeAloud 是一个 **local-first voice input tool**：
 
 > 按住一个快捷键说话，松手，文字出现在当前应用中。
 
@@ -92,7 +92,7 @@ Groq 与 OpenAI 不是与“本地”平级的产品模式，而是“云端转�
 
 > **Speak. It types.**
 >
-> Hold a shortcut, talk, and release. SayType types into any app with private, on-device transcription—no account, no API key, no per-minute fees.
+> Hold a shortcut, talk, and release. TypeAloud types into any app with private, on-device transcription—no account, no API key, no per-minute fees.
 
 跨平台宣传必须与真实支持范围一致：当前只有 Apple Silicon 被标记为 `local_capable`；Intel Mac、Windows 和 Linux 虽有本地 runner，但尚未完成同等级真机性能验证，因此默认推荐云端，不能宣传为这些平台已经默认本地。
 
@@ -114,7 +114,7 @@ Groq 与 OpenAI 不是与“本地”平级的产品模式，而是“云端转�
 
 - 不在首次启动时未经同意自动下载约 1 GB 模型；
 - 不做运行时跑分、CPU 型号数据库或动态性能 benchmark；
-- 不新增 SayType 自有云端代理、账号或额度系统；
+- 不新增 TypeAloud 自有云端代理、账号或额度系统；
 - 不做本地失败后的自动 cloud fallback；
 - 不更换 Qwen3-ASR 或 llama.cpp；
 - 不在本轮扩展 Windows/Linux 的本地性能承诺；
@@ -266,7 +266,7 @@ readiness、onboarding gate 和首页状态统一读取 `engineReady`。原始 A
 
 Accessibility checklist 必须复用 `v1.8.1` 的完整授权流程，而不是退回普通 deep link：
 
-1. 先触发系统 Accessibility prompt，使 SayType 出现在权限列表；
+1. 先触发系统 Accessibility prompt，使 TypeAloud 出现在权限列表；
 2. 打开系统设置；
 3. 在正式 `.app` 环境中立即显示 drag cloud；
 4. 轮询和窗口 refocus 都重新检查授权；
@@ -367,7 +367,7 @@ Settings 中将现有 Models/API Provider 页面重构为 **Transcription**。
 1. Provider：Groq（推荐）/ OpenAI；
 2. 所选 provider 的 API key；
 3. 具体模型选择；
-4. 音频直达该服务、SayType 不经过自有服务器的说明。
+4. 音频直达该服务、TypeAloud 不经过自有服务器的说明。
 
 切回 Local 不删除已经保存的 cloud keys；只有用户主动回到 Cloud 时它们才会被使用。
 

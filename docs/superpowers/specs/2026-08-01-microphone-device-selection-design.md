@@ -5,13 +5,13 @@
 
 ## Problem
 
-macOS makes output-device switching readily accessible, but input-device selection is buried in System Settings. A SayType user can therefore start dictating without knowing whether audio is coming from the MacBook microphone, AirPods, a display, a webcam, or a USB interface. When transcription quality suddenly changes, the user has no quick way to confirm or correct the input source.
+macOS makes output-device switching readily accessible, but input-device selection is buried in System Settings. A TypeAloud user can therefore start dictating without knowing whether audio is coming from the MacBook microphone, AirPods, a display, a webcam, or a USB interface. When transcription quality suddenly changes, the user has no quick way to confirm or correct the input source.
 
-SayType currently asks `getUserMedia` for the system-default input at the start of every recording. The persisted `microphone` setting remains fixed at `"default"`; it is exposed in the settings payload but is not applied to capture and has no UI.
+TypeAloud currently asks `getUserMedia` for the system-default input at the start of every recording. The persisted `microphone` setting remains fixed at `"default"`; it is exposed in the settings payload but is not applied to capture and has no UI.
 
 ## Product Goal
 
-Make the active microphone visible and switchable from SayType without making microphone configuration part of normal setup.
+Make the active microphone visible and switchable from TypeAloud without making microphone configuration part of normal setup.
 
 The default experience remains zero-configuration. Users who never change microphones continue to follow the system default automatically. Users with AirPods, docks, monitors, webcams, USB microphones, or audio interfaces gain a direct way to inspect and switch the input source.
 
@@ -34,7 +34,7 @@ The first item is:
 
 - `Automatic (System Default)`
 
-Available input devices follow, each using the name reported by the operating system. The saved preference has a checkmark. If a saved device is unavailable, the submenu retains an unavailable entry for that preference and also indicates that SayType will temporarily use the system default.
+Available input devices follow, each using the name reported by the operating system. The saved preference has a checkmark. If a saved device is unavailable, the submenu retains an unavailable entry for that preference and also indicates that TypeAloud will temporarily use the system default.
 
 Selecting an entry applies it to the next recording and persists the preference immediately. An in-progress recording is never interrupted or switched mid-stream.
 
@@ -60,9 +60,9 @@ The displayed name comes from the opened audio track, not only from the saved pr
 
 ### Device changes
 
-SayType watches the media-device inventory without keeping an audio stream open. Device monitoring must not activate the macOS microphone indicator.
+TypeAloud watches the media-device inventory without keeping an audio stream open. Device monitoring must not activate the macOS microphone indicator.
 
-- A newly connected device is added to the tray and settings lists, but SayType does not switch to it automatically.
+- A newly connected device is added to the tray and settings lists, but TypeAloud does not switch to it automatically.
 - If the saved device disappears, future recordings fall back to the system default. The saved preference is retained so reconnecting the device restores it automatically.
 - If the system default changes while the preference is `Automatic`, the next recording uses the new default.
 - Device changes never interrupt an active recording.
@@ -82,7 +82,7 @@ A small device-manager unit in the input-prompt frontend will:
 5. resolve a captured track's device ID to a display label,
 6. degrade safely when enumeration or device-change events are unsupported.
 
-The manager observes device metadata only. It must not open a media stream to monitor connections. SayType's existing launch prime remains the only non-recording `getUserMedia` call and still stops its track immediately.
+The manager observes device metadata only. It must not open a media stream to monitor connections. TypeAloud's existing launch prime remains the only non-recording `getUserMedia` call and still stops its track immediately.
 
 ### Rust state and tray
 
@@ -171,7 +171,7 @@ No device list, device name, or device identifier leaves the local machine.
 5. Select each device from Settings and confirm the tray checkmark updates.
 6. Disconnect the selected device and verify automatic fallback without losing the preference.
 7. Reconnect the preferred device and verify the next recording returns to it.
-8. Change the macOS default while SayType is set to automatic and verify the next recording follows it.
+8. Change the macOS default while TypeAloud is set to automatic and verify the next recording follows it.
 9. Change devices during an active recording and verify the recording is not deliberately interrupted.
 10. Verify permission-denied, no-device, busy-device, and unsupported-enumeration states.
 

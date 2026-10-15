@@ -316,7 +316,18 @@ fn runtime_cli_path(base: &Path, runtime: Runtime) -> PathBuf {
 /// machine-specific rpath that died with the build directory), and without this
 /// stamp a stale extraction would survive the very update that fixes it.
 fn runtime_stamp_path(base: &Path, runtime: Runtime) -> PathBuf {
-  runtime_bin_dir(base, runtime).join(".saytype-runtime-sha256")
+  runtime_bin_dir(base, runtime).join(RUNTIME_STAMP_FILE)
+}
+
+pub(crate) const RUNTIME_STAMP_FILE: &str = ".typealoud-runtime-sha256";
+/// The stamp's name before the TypeAloud rename. Still read, so a runtime
+/// extracted by an older build is not thrown away and downloaded again.
+const LEGACY_RUNTIME_STAMP_FILE: &str = ".saytype-runtime-sha256";
+
+pub(crate) fn read_runtime_stamp(path: &Path) -> Option<String> {
+  fs::read_to_string(path)
+    .or_else(|_| fs::read_to_string(path.with_file_name(LEGACY_RUNTIME_STAMP_FILE)))
+    .ok()
 }
 
 fn write_runtime_stamp(base: &Path, runtime: Runtime) {
@@ -330,7 +341,7 @@ fn runtime_is_installed(base: &Path, runtime: Runtime) -> bool {
   let cli = runtime_cli_path(base, runtime);
   fs::metadata(&cli).map(|m| m.is_file()).unwrap_or(false)
     && is_executable(&cli)
-    && fs::read_to_string(runtime_stamp_path(base, runtime))
+    && read_runtime_stamp(&runtime_stamp_path(base, runtime))
       .map(|stamp| stamp.trim() == asset.sha256)
       .unwrap_or(false)
 }
@@ -2302,6 +2313,17 @@ pub fn delete_model_for(model: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn runtime_stamp_falls_back_to_the_pre_rename_name() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let current = temp.path().join(RUNTIME_STAMP_FILE);
+    assert_eq!(read_runtime_stamp(&current), None);
+    fs::write(temp.path().join(LEGACY_RUNTIME_STAMP_FILE), "legacy").unwrap();
+    assert_eq!(read_runtime_stamp(&current).as_deref(), Some("legacy"));
+    fs::write(&current, "current").unwrap();
+    assert_eq!(read_runtime_stamp(&current).as_deref(), Some("current"));
+  }
 
   #[test]
   fn worker_identity_rejects_model_and_runtime_switches() {

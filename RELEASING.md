@@ -107,7 +107,7 @@ and local builds are unaffected.
 
 | Secret | Value |
 | --- | --- |
-| `TAURI_SIGNING_PRIVATE_KEY` | Contents of `~/.tauri/saytype-updater.key` (minisign). **Back it up: if this key is lost, installed clients can never auto-update again.** |
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of `~/.tauri/typealoud-updater.key` (minisign). **Back it up: if this key is lost, installed clients can never auto-update again.** |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | The key's password (also in the local `scripts/sign.env`) |
 
 The bundler reads only `TAURI_SIGNING_PRIVATE_KEY` (a path or the contents); a `_PATH` variant is
@@ -362,7 +362,7 @@ base64 -i ~/Desktop/certificate.p12 | pbcopy   # 粘贴到 APPLE_CERTIFICATE
 
 | Secret | 值 |
 | --- | --- |
-| `TAURI_SIGNING_PRIVATE_KEY` | `~/.tauri/saytype-updater.key` 的内容(minisign)。**务必备份:丢了这把钥匙,已安装的客户端就再也无法自动更新。** |
+| `TAURI_SIGNING_PRIVATE_KEY` | `~/.tauri/typealoud-updater.key` 的内容(minisign)。**务必备份:丢了这把钥匙,已安装的客户端就再也无法自动更新。** |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 这把钥匙的密码(本地 `scripts/sign.env` 里也有) |
 
 bundler 只认 `TAURI_SIGNING_PRIVATE_KEY`(路径或内容都行),`_PATH` 变体不生效。对应的公钥在 `tauri.conf.json` 里。

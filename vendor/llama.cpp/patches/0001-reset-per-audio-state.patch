@@ -74,7 +74,7 @@ index 8704ea7..6e33c39 100644
          }
          LOG("\n   /clear           clear the chat history");
          LOG("\n   /quit or /exit   exit the program");
-+        LOG("\n   saytype-session-reset-v1");
++        LOG("\n   typealoud-session-reset-v1");
          LOG("\n");
  
          std::string content;

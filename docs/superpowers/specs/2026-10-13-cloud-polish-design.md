@@ -1,7 +1,7 @@
 # 云端润色
 
 **日期：** 2026-10-13
-**状态：** 中转服务已写好，放在官网仓库 `saytype-web`（`api/polish.js`、`relay/`），随官网部署，配好密钥和存储前返回 503；客户端未接入。提示词在该仓库的 `relay/prompt.js`，测试用例在它的 `scripts/polish-eval/`。
+**状态：** 中转服务已写好，放在官网仓库 `typealoud-web`（`api/polish.js`、`relay/`），随官网部署，配好密钥和存储前返回 503；客户端未接入。提示词在该仓库的 `relay/prompt.js`，测试用例在它的 `scripts/polish-eval/`。
 
 ## 要解决的问题
 
@@ -106,13 +106,13 @@ TypeAloud 现在给出的是"说什么出什么"的文字，只去掉了嗯、�
 改提示词或换模型时跑一遍对比：
 
 ```bash
-# 在 saytype-web 仓库里
+# 在 typealoud-web 仓库里
 OPENAI_API_KEY=... node scripts/polish-eval/run.mjs --runs 3
 ```
 
 ## 中转服务
 
-放在官网项目里（`saytype-web`，已经是绑定 `typealoud.app` 的 Vercel 项目，下载镜像也在这里），不另建项目和域名，地址是 `https://typealoud.app/v1/polish`。只有一个接口：
+放在官网项目里（`typealoud-web`，已经是绑定 `typealoud.app` 的 Vercel 项目，下载镜像也在这里），不另建项目和域名，地址是 `https://typealoud.app/v1/polish`。只有一个接口：
 
 ```
 POST /v1/polish

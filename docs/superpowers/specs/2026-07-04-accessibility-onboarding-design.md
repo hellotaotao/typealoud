@@ -6,7 +6,7 @@
 
 ## 目标
 
-Accessibility 是 SayType 能工作的前提(文字插入 + 全局快捷键都依赖它)。当前主窗只有一个
+Accessibility 是 TypeAloud 能工作的前提(文字插入 + 全局快捷键都依赖它)。当前主窗只有一个
 "辅助功能" warn pill,点了只会打开 Settings 窗口,用户要自己翻到权限区、点按钮、去系统设置、
 再手动切回来触发重查 —— 首次用户在这一步流失。目标:把"未授权 → 已授权"做成一条一键、
 自动推进、文案打消顾虑的路径。
@@ -34,7 +34,7 @@ AX pill 的 onFix 从 `openSettings` 改为触发同一个一键流程。API key
 ### 2. 一键流程(顺序是关键)
 
 1. 先 `request-accessibility-permission`(prompt:true)—— 只有弹过一次系统提示,
-   系统设置的辅助功能列表里才会预先出现 SayType 那一行;否则首次用户打开列表发现没东西可勾。
+   系统设置的辅助功能列表里才会预先出现 TypeAloud 那一行;否则首次用户打开列表发现没东西可勾。
    若返回已授权则直接刷新收工。
 2. 再 `show-permission-dialog`(深链 `x-apple.systempreferences:...Privacy_Accessibility`)
    直达辅助功能页。
@@ -67,6 +67,6 @@ hotkey —— 用户绕过按钮手动去系统设置授权再切回主窗时,�
 ## 测试
 
 - `node --check` 语法校验三个 JS;`cargo test` 保持绿(Rust 未动)。
-- 真机验收(用户):`tccutil reset Accessibility com.tao.saytype` 后启动 → 主窗出现引导面板 →
-  点按钮 → 系统提示出现 + 设置页直达 + SayType 已在列表 → 打开开关 → 数秒内主窗自动变
+- 真机验收(用户):`tccutil reset Accessibility com.tao.typealoud` 后启动 → 主窗出现引导面板 →
+  点按钮 → 系统提示出现 + 设置页直达 + TypeAloud 已在列表 → 打开开关 → 数秒内主窗自动变
   "就绪"、快捷键立即可用(不重启 app)。

@@ -5,7 +5,7 @@
 
 ## Problem
 
-SayType now has a complete signed + notarized release pipeline (CI builds a
+TypeAloud now has a complete signed + notarized release pipeline (CI builds a
 universal DMG on every `v*` tag, signs with Developer ID, notarizes, and opens
 a draft GitHub Release). But installed copies never learn about new versions:
 the app is tray-resident and may run for weeks, and the only upgrade path is
@@ -15,7 +15,7 @@ manually downloading a DMG. The natural next step is in-app automatic updates.
 
 Use the official Tauri v2 updater plugin with GitHub Releases hosting the
 update manifest (`latest.json`). The public repo's
-`https://github.com/hellotaotao/saytype/releases/latest/download/latest.json`
+`https://github.com/hellotaotao/typealoud/releases/latest/download/latest.json`
 endpoint is free, serverless, and natively integrated with the existing
 `tauri-action` pipeline (one switch + a signing key).
 
@@ -78,7 +78,7 @@ previous version's manifest.
   the environment; keeping it out of the main config leaves local
   `npm run build:mac` untouched.
 - Per-platform updater artifacts:
-  - **macOS:** `SayType.app.tar.gz` + `.sig` from the universal build; the
+  - **macOS:** `TypeAloud.app.tar.gz` + `.sig` from the universal build; the
     `darwin-aarch64` and `darwin-x86_64` manifest keys point at the same
     universal archive.
   - **Windows:** NSIS `.exe` + `.sig` (`updaterJsonPreferNsis: true` for a

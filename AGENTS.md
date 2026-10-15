@@ -132,7 +132,7 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
     `repeats_previous` must keep rejecting a verbatim repeat (upstream reuse bug).
   - Chunks stay ≤ 75 s so every chunk maps to ctx 2048 and one worker serves the whole session.
   - Drain stdout and stderr concurrently. Partial text is visible progress, not streaming ASR.
-  - Trust an extracted runtime only when its `.saytype-runtime-sha256` stamp matches.
+  - Trust an extracted runtime only when its `.typealoud-runtime-sha256` stamp matches.
   - Qwen gets neither the language setting nor the dictionary prompt (term matching and replacement
     rules still
     apply to its final text).
