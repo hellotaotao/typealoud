@@ -11,7 +11,7 @@ test("retry codes render in both languages without translating successful dictat
     document: { documentElement: { setAttribute() {} } },
   });
   vm.runInContext(read("../src/views/i18n.js"), context);
-  const { localizeRetryError } = context.window.SayTypeI18n;
+  const { localizeRetryError } = context.window.TypeAloudI18n;
   const main = read("../src/views/main.js");
   // Read only the dedicated production code registry, never test literals.
   const backend = read("../src-tauri/src/retry_error.rs");
@@ -25,9 +25,9 @@ test("retry codes render in both languages without translating successful dictat
   ];
   for (const code of legacyCodes) codes.add(code);
   for (const code of codes) {
-    context.window.SayTypeI18n.setLanguage("en");
+    context.window.TypeAloudI18n.setLanguage("en");
     const english = localizeRetryError(code);
-    context.window.SayTypeI18n.setLanguage("zh");
+    context.window.TypeAloudI18n.setLanguage("zh");
     const chinese = localizeRetryError(code);
     assert.notEqual(english, code);
     assert.notEqual(chinese, english);
@@ -101,7 +101,7 @@ test("History searches the displayed translation and preserves literal successfu
     renderGroupedList = (_container, rows) => { window.matches = rows.map(row => row.id); };
   `, context);
   for (const [language, query] of [["en", "no speech"], ["zh", "未检测到语音"]]) {
-    context.window.SayTypeI18n.setLanguage(language);
+    context.window.TypeAloudI18n.setLanguage(language);
     context.query = query;
     vm.runInContext("window.matches = []; historyQuery = query; renderHistory();", context);
     assert.deepEqual(Array.from(context.window.matches), ["failed"]);

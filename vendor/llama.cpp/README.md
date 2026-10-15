@@ -1,8 +1,8 @@
 # The llama.cpp reset patch — kept as a record, no longer built
 
-SayType ships **upstream's own llama.cpp `b9960` releases** on every platform.
+TypeAloud ships **upstream's own llama.cpp `b9960` releases** on every platform.
 Nothing here is built or bundled. The patch and this note stay because the bug
-they describe is real, still present upstream, and SayType now reuses a worker
+they describe is real, still present upstream, and TypeAloud now reuses a worker
 across the chunks of one recording session — so the measurement below is the
 thing that decides whether that reuse is a win.
 
@@ -14,7 +14,7 @@ call returns, the batch can retain dangling chunk pointers, and a later audio
 request may reuse the same address and receive the previous audio's embedding.
 
 Measured on Windows against stock `b9960`, feeding one process alternating clips
-with `/clear` between them exactly as SayType does:
+with `/clear` between them exactly as TypeAloud does:
 
 - every decode after the first returned the **previous** clip's transcript;
 - the process aborted on the third with `0xC0000409`
@@ -22,7 +22,7 @@ with `/clear` between them exactly as SayType does:
 
 `/clear` does not help: upstream's implementation does not reset media state.
 
-## Why SayType no longer patches around it
+## Why TypeAloud no longer patches around it
 
 The patch made the media batch request-local and expanded `/clear` to reset
 queued media, sampler state, pending content, chat history, and model memory.
@@ -45,7 +45,7 @@ has seen. That alone was not worth a private native build.
 
 ## Where reuse stands now
 
-SayType no longer retires the worker after every decode: it is leased to one
+TypeAloud no longer retires the worker after every decode: it is leased to one
 recording session and serves that session's chunks, which saves a model load per
 chunk on a long dictation. That deliberately runs into the bug above, so the
 guard is `repeats_previous` in `local_asr.rs` — a decode returning the previous
@@ -55,7 +55,7 @@ is time.
 
 Whether the trade pays depends entirely on the contamination *rate*, and the
 measurement above (every decode after the first) was taken with alternating
-clips back-to-back, not at SayType's real chunk cadence. If it still holds at
+clips back-to-back, not at TypeAloud's real chunk cadence. If it still holds at
 that cadence, reuse is a net loss: each reused chunk pays a rejected decode plus
 a cold one-shot, where retiring after each decode paid one hidden load.
 
@@ -63,7 +63,7 @@ a cold one-shot, where retiring after each decode paid one hidden load.
 needs the real assets plus two clips of different speech:
 
 ```
-SAYTYPE_TEST_WAV_A=a.wav SAYTYPE_TEST_WAV_B=b.wav \
+TYPEALOUD_TEST_WAV_A=a.wav TYPEALOUD_TEST_WAV_B=b.wav \
   cargo test real_reuse_contamination_rate -- --ignored --nocapture
 ```
 

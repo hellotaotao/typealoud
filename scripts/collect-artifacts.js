@@ -86,8 +86,8 @@ function installToApplications(dmgPath) {
   } catch {
     /* not running */
   }
-  // SayType.app is the pre-rename bundle: same identifier, so a running copy
-  // would hand the launch below back to itself.
+  // SayType.app is the pre-rename bundle. A running copy would keep the global
+  // hotkey and transcribe alongside the freshly installed app.
   for (const bundle of [appName, "SayType.app"]) {
     try {
       execFileSync("pkill", ["-f", `${bundle}/Contents/MacOS/`]);
@@ -98,7 +98,7 @@ function installToApplications(dmgPath) {
 
   // Mount at a unique temp path so a leftover/duplicate volume name can't
   // collide (which would mount as "TypeAloud 1" and leak), and detach is exact.
-  const mountPoint = fs.mkdtempSync(path.join(os.tmpdir(), "saytype-dmg-"));
+  const mountPoint = fs.mkdtempSync(path.join(os.tmpdir(), "typealoud-dmg-"));
   let mounted = false;
   try {
     execFileSync("hdiutil", [

@@ -14,7 +14,7 @@ test("every manifest and lockfile carries the same version", () => {
   assert.match(read("src-tauri/Cargo.toml"), new RegExp(`^version\\s*=\\s*"${version}"\\s*$`, "m"), "Cargo.toml");
   assert.match(
     read("src-tauri/Cargo.lock"),
-    new RegExp(`name = "saytype"\\r?\\nversion = "${version}"`),
+    new RegExp(`name = "typealoud"\\r?\\nversion = "${version}"`),
     "Cargo.lock"
   );
 });

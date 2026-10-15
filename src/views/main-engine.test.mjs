@@ -9,7 +9,7 @@ function harness(fail = false) {
   const context = vm.createContext({
     selectedEngineValue: () => "local-qwen-large",
     NEMOTRON_LOCAL_MODEL: "nemotron", nemotronOffered: () => false,
-    window: { SayTypeSettings: { runEngineChange: async change => change({ provider: "local", model: "qwen3-asr-1.7b-q8_0" }) } },
+    window: { TypeAloudSettings: { runEngineChange: async change => change({ provider: "local", model: "qwen3-asr-1.7b-q8_0" }) } },
     ENGINE_OPTIONS: [{ value: "local-qwen", model: "qwen3-asr-0.6b-q8_0" }, { value: "local-qwen-large", model: "qwen3-asr-1.7b-q8_0" }, { value: "openai" }],
     showPage: async (...args) => pages.push(args),
     refreshReadiness: async () => calls.push(["refresh"]),
@@ -119,7 +119,7 @@ test("current engine with missing assets can open setup", async () => {
 
 test("home mutations are dispatched through the Settings shared save queue", async () => {
   const h = harness(); let dispatched = false;
-  h.context.window.SayTypeSettings.runEngineChange = async change => {
+  h.context.window.TypeAloudSettings.runEngineChange = async change => {
     dispatched = true;
     assert.equal(h.calls.length, 0);
     return change({ provider: "local", model: "qwen3-asr-1.7b-q8_0" });

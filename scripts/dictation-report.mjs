@@ -30,7 +30,7 @@ function integer(value, minimum = 0) {
 }
 
 function parseLine(line) {
-  const match = /\[saytype_lifecycle\]\s*(?:\[(?:INFO|WARN|ERROR|DEBUG|TRACE)\]\s*)?(frontend|audio-chunk(?::(?:received|complete|slow))?)\s+(.+)$/.exec(line);
+  const match = /\[typealoud_lifecycle\]\s*(?:\[(?:INFO|WARN|ERROR|DEBUG|TRACE)\]\s*)?(frontend|audio-chunk(?::(?:received|complete|slow))?)\s+(.+)$/.exec(line);
   if (!match) return null;
   const [, kind, tail] = match;
   const data = fields(tail);

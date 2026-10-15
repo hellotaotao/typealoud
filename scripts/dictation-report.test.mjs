@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDictationReport } from './dictation-report.mjs';
 
-const line = body => `[2026-09-09][saytype_lifecycle][INFO] ${body}`;
+const line = body => `[2026-09-09][typealoud_lifecycle][INFO] ${body}`;
 const lifecycle = (phase, event, id = 7, metadata = '') => line(`frontend session_id=${id} phase=${phase} event=${event} elapsed_ms=10 chunk_index=None pending_count=Some(1) ${metadata}`);
 const final = tail => line(`audio-chunk session_id=7 event=final reason=complete accepted=16000 queued=16000 submitted=16000 completed=16000 queued_chunks=1 submitted_chunks=1 completed_chunks=1 buffered=0 stopped=1 ${tail || ''}`);
 const report = lines => createDictationReport(lines.join('\n'));
@@ -78,7 +78,7 @@ test('repeated session IDs are explicitly ambiguous instead of merged success cl
 
 test('Rust Some metadata, backend chunks, and alternate level ordering parse safely', () => {
   const result = report([
-    '[2026-09-09][INFO][saytype_lifecycle] frontend session_id=8 phase=chunk-ipc event=complete elapsed_ms=14 chunk_index=Some(2) pending_count=None',
+    '[2026-09-09][INFO][typealoud_lifecycle] frontend session_id=8 phase=chunk-ipc event=complete elapsed_ms=14 chunk_index=Some(2) pending_count=None',
     line('audio-chunk:received session_id=8 chunk_index=2 bytes=100'),
     line('audio-chunk:complete session_id=none chunk_index=2 final_chars=10'),
   ]);
@@ -112,7 +112,7 @@ test('CLI help, argument validation, and errors never echo private paths', () =>
 });
 
 test('CLI reads a fixture and writes privacy-safe JSON only to stdout', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'saytype-report-'));
+  const directory = mkdtempSync(join(tmpdir(), 'typealoud-report-'));
   try {
     const path = join(directory, 'private.log');
     writeFileSync(path, lifecycle('capture', 'start', 7, 'text=PRIVATE_TRANSCRIPT'));

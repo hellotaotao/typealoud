@@ -1,5 +1,5 @@
 {
-  "name": "saytype",
+  "name": "typealoud",
   "version": "1.19.3",
   "description": "Voice input method software built with Tauri",
   "scripts": {

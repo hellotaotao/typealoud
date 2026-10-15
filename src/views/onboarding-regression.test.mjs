@@ -75,7 +75,7 @@ test("practice gives feedback and a History fallback", () => {
 test("required settings and Qwen 1.7B copy is translated, with bounded local privacy", () => {
   const context=vm.createContext({window:{},document:{documentElement:{setAttribute(){}}},navigator:{language:"en"}});
   vm.runInContext(readFileSync(new URL("./i18n.js",import.meta.url),"utf8"),context);
-  const {setLanguage,t}=context.window.SayTypeI18n;
+  const {setLanguage,t}=context.window.TypeAloudI18n;
   for(const key of ["settings.pageSubtitle","settings.engine.active","settings.engine.activeModel","settings.engine.details","settings.engine.notReadyKey","settings.engine.notReadyDownload","settings.engine.switchFailed","settings.engine.invalidModel","settings.engine.keyRequired","settings.engine.cloudNotice","settings.engine.qwen.description","settings.engine.more","settings.engine.qwenSize.suggest","settings.engine.qwenSize.slow","home.engineMore","home.engineCaptionLocalQwenLarge","settings.apiProvider.localQwenLarge"]) {
     setLanguage("en");const en=t(key);setLanguage("zh");assert.notEqual(t(key),en,key);assert.match(t(key),/[\u4e00-\u9fff]/,key);
   }
@@ -173,8 +173,8 @@ test("privacy explains local dictation without a cloud routing diagram or transl
   const context = vm.createContext({window:{},document:{documentElement:{setAttribute(){}}},navigator:{language:"en"}});
   vm.runInContext(readFileSync(new URL("./i18n.js",import.meta.url),"utf8"),context);
   for (const language of ["en", "zh"]) {
-    context.window.SayTypeI18n.setLanguage(language);
-    const copy = [...privacy.matchAll(/data-i18n="([^"]+)"/g)].map(match => context.window.SayTypeI18n.t(match[1])).join(" ");
+    context.window.TypeAloudI18n.setLanguage(language);
+    const copy = [...privacy.matchAll(/data-i18n="([^"]+)"/g)].map(match => context.window.TypeAloudI18n.t(match[1])).join(" ");
     assert.doesNotMatch(copy, /Groq|OpenAI|API|\bkey\b|translat|云端|翻译|账户/i);
     assert.match(copy, language === "zh" ? /本地/ : /local/i);
   }
@@ -236,8 +236,8 @@ test("Accessibility action remains connected to the native permission flow", () 
 test("Accessibility heading names TypeAloud as the actor", () => {
   const context=vm.createContext({window:{},document:{documentElement:{setAttribute(){}}},navigator:{language:"zh"}});
   vm.runInContext(readFileSync(new URL("./i18n.js",import.meta.url),"utf8"),context);
-  context.window.SayTypeI18n.setLanguage("zh");
-  assert.equal(context.window.SayTypeI18n.t("onboarding.ax.title"),"让 TypeAloud 为你输入文字");
+  context.window.TypeAloudI18n.setLanguage("zh");
+  assert.equal(context.window.TypeAloudI18n.t("onboarding.ax.title"),"让 TypeAloud 为你输入文字");
 });
 
 test("compact practice summary reflects verified state and applicable platform steps", () => {

@@ -709,7 +709,7 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
         let was_held = state.combo_held();
         state.handle_event(event, now);
         if let Some(line) = trace.observe_key(&state, was_held, event, source_pid, now) {
-          log::info!(target: "saytype_lifecycle", "{line}");
+          log::info!(target: "typealoud_lifecycle", "{line}");
         }
       }
       Ok(HotkeyMsg::UpdateShortcut(shortcut)) => {
@@ -725,7 +725,7 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
     state.handle_tick(now);
     for action in state.drain_actions() {
       if let Some(line) = trace.observe_action(action, now) {
-        log::info!(target: "saytype_lifecycle", "{line}");
+        log::info!(target: "typealoud_lifecycle", "{line}");
       }
       dispatch_action(&app, action);
     }

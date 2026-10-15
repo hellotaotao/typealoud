@@ -5,7 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-pub const APP_IDENTIFIER: &str = "com.tao.saytype";
+pub const APP_IDENTIFIER: &str = "com.tao.typealoud";
+/// The identifier before the TypeAloud rename. Its data directory and login
+/// item are carried over once, on the first launch after the rename.
+pub const LEGACY_APP_IDENTIFIER: &str = "com.tao.saytype";
 pub const CONFIG_FILE_NAME: &str = "config.json";
 pub const HISTORY_FILE_NAME: &str = "transcription-history.json";
 pub const DEFAULT_RECORD_SHORTCUT: &str = "Ctrl+Shift";
@@ -286,13 +289,39 @@ impl SettingsPayload {
   }
 }
 
+fn data_base_dir() -> Option<PathBuf> {
+  dirs::data_local_dir().or_else(dirs::data_dir)
+}
+
 pub fn app_data_dir() -> Result<PathBuf> {
-  let base = dirs::data_local_dir()
-    .or_else(dirs::data_dir)
-    .context("failed to resolve application data directory")?;
+  let base = data_base_dir().context("failed to resolve application data directory")?;
   let dir = base.join(APP_IDENTIFIER);
   fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
   Ok(dir)
+}
+
+/// Move the pre-rename data directory (settings, history, downloaded models
+/// and runtimes) to the current identifier. Must run before anything calls
+/// `app_data_dir`, which would create an empty directory and hide the old one.
+/// Logging is not set up yet at that point, so failures go to stderr.
+pub fn migrate_legacy_app_data() {
+  let Some(base) = data_base_dir() else { return };
+  match move_legacy_dir(&base.join(LEGACY_APP_IDENTIFIER), &base.join(APP_IDENTIFIER)) {
+    Ok(true) => crate::platform::migrate_legacy_login_item(LEGACY_APP_IDENTIFIER),
+    Ok(false) => {}
+    Err(error) => eprintln!("legacy data migration failed: {error:#}"),
+  }
+}
+
+/// Rename `legacy` to `current` when only the legacy directory exists.
+/// Returns whether anything moved.
+fn move_legacy_dir(legacy: &Path, current: &Path) -> Result<bool> {
+  if !legacy.is_dir() || current.exists() {
+    return Ok(false);
+  }
+  fs::rename(legacy, current)
+    .with_context(|| format!("failed to move {} to {}", legacy.display(), current.display()))?;
+  Ok(true)
 }
 
 pub fn config_path() -> Result<PathBuf> {
@@ -448,6 +477,32 @@ pub fn update_auto_launch(enabled: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn legacy_data_dir_moves_only_when_current_is_missing() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let legacy = temp.path().join(LEGACY_APP_IDENTIFIER);
+    let current = temp.path().join(APP_IDENTIFIER);
+    fs::create_dir_all(legacy.join("local-asr")).unwrap();
+    fs::write(legacy.join(CONFIG_FILE_NAME), "{}").unwrap();
+
+    assert!(move_legacy_dir(&legacy, &current).unwrap());
+    assert!(!legacy.exists());
+    assert!(current.join(CONFIG_FILE_NAME).is_file());
+    assert!(current.join("local-asr").is_dir());
+
+    fs::create_dir_all(&legacy).unwrap();
+    assert!(!move_legacy_dir(&legacy, &current).unwrap());
+    assert!(legacy.is_dir());
+  }
+
+  #[test]
+  fn legacy_data_dir_absent_is_a_no_op() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let current = temp.path().join(APP_IDENTIFIER);
+    assert!(!move_legacy_dir(&temp.path().join(LEGACY_APP_IDENTIFIER), &current).unwrap());
+    assert!(!current.exists());
+  }
 
   #[test]
   fn merge_spelled_letters_defaults_on_for_new_and_existing_configs() {
@@ -675,7 +730,7 @@ mod tests {
     use std::sync::{Arc, Barrier};
 
     let path = std::env::temp_dir().join(format!(
-      "saytype-config-mutation-{}-{}.json",
+      "typealoud-config-mutation-{}-{}.json",
       std::process::id(),
       chrono::Utc::now().timestamp_micros()
     ));

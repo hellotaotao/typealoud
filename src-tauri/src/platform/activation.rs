@@ -32,10 +32,10 @@ fn observer_class() -> &'static Class {
   unsafe {
     REGISTER.call_once(|| {
       let superclass = class!(NSObject);
-      let mut decl = ClassDecl::new("SayTypeActivationObserver", superclass)
-        .expect("SayTypeActivationObserver already registered");
+      let mut decl = ClassDecl::new("TypeAloudActivationObserver", superclass)
+        .expect("TypeAloudActivationObserver already registered");
       decl.add_method(
-        sel!(sayTypeAppDidBecomeActive:),
+        sel!(typeAloudAppDidBecomeActive:),
         did_become_active as extern "C" fn(&mut Object, Sel, *mut Object),
       );
       CLASS = decl.register();
@@ -61,7 +61,7 @@ pub fn watch(callback: ActivationCallback) {
     let _: () = msg_send![
       center,
       addObserver: observer
-      selector: sel!(sayTypeAppDidBecomeActive:)
+      selector: sel!(typeAloudAppDidBecomeActive:)
       name: NSApplicationDidBecomeActiveNotification
       object: std::ptr::null::<Object>()
     ];

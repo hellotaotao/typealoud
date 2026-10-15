@@ -56,7 +56,7 @@ built `.dmg` into `dist/`**, the kept archive of every version's installer, so d
 relaunches it.
 
 **Dev vs official build identity:** `src-tauri/build.rs` embeds a channel at compile time. CI's
-release workflow sets `SAYTYPE_OFFICIAL_BUILD=1` → channel `official` → the UI shows `v1.6.1`. Any
+release workflow sets `TYPEALOUD_OFFICIAL_BUILD=1` → channel `official` → the UI shows `v1.6.1`. Any
 local build (dev mode or packaged) defaults to `dev` (fail-safe) and shows `v1.6.1 · dev.42` in the
 main-window sidebar and the settings updates panel, with git hash/dirty/build time in the tooltip.
 The counter lives in `.dev-build-number` (repo root, gitignored) and is bumped by
@@ -98,7 +98,7 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 
 ### Rust backend (`src-tauri/src/`)
 
-- `main.rs` — thin entry, calls `saytype_lib::run()`.
+- `main.rs` — thin entry, calls `typealoud_lib::run()`.
 - `lib.rs` — builds the app: manages `AppState`; on `setup` creates the tray, reads config, checks
   Accessibility and starts the hotkey listener; hides `main` on close instead of quitting;
   **injects each window's entry script** (`main.js` / `input-prompt.js` / `ax-cloud.js`, guarded by
@@ -174,7 +174,7 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   (EU) as one `daily_usage` row per finished day plus a few one-off onboarding events. `PRIVACY.md`
   is the public promise, so a change to what is recorded or sent must update it in the same commit.
   Only counts and fixed labels, never text, audio, paths, device names or keys. Sends only from
-  official builds with `SAYTYPE_POSTHOG_KEY` compiled in, and only after the onboarding privacy page
+  official builds with `TYPEALOUD_POSTHOG_KEY` compiled in, and only after the onboarding privacy page
   was passed or onboarding completed. Turning `usage_stats` off deletes the file, ID included.
 - `scrub.rs` — strips known ASR boilerplate and prompt leaks and always corrects a short built-in
   list of misheard names ("cloud code" → "Claude Code"). `finalize_transcription` then removes
@@ -219,7 +219,7 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 - `input-prompt.js` — the recording session state machine: capture, Qwen chunking
   (`chunk-decision.mjs`), Nemotron live audio, the VAD gate (`vad-gate.js`), retries, recovery and
   the insertion FIFO.
-- `ipc-bridge.js` — the IPC abstraction. Exposes `window.__SAYTYPE_IPC__` with
+- `ipc-bridge.js` — the IPC abstraction. Exposes `window.__TYPEALOUD_IPC__` with
   `invoke(channel, ...args)` and `on(channel, handler)`, mapping renderer channel names
   (e.g. `transcribe-audio`) to Tauri commands (`transcribe_audio`) and event listeners.
 - `i18n.js` — all UI strings (add new copy here), including the `RETRY_*` renderer.
@@ -227,7 +227,7 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 ### Polish relay (in the website repository)
 
 `POST https://typealoud.app/v1/polish` forwards dictated text to the polish model and returns the
-cleaned text. Its code, prompt, limits and eval cases live in the public `hellotaotao/saytype-web`
+cleaned text. Its code, prompt, limits and eval cases live in the public `hellotaotao/typealoud-web`
 repository (`api/polish.js`, `relay/`, `scripts/polish-eval/`), which is the Vercel project behind
 typealoud.app. The app does not call it yet. Design and measurements:
 `docs/superpowers/specs/2026-10-13-cloud-polish-design.md`. The relay never stores or logs text,
@@ -289,8 +289,8 @@ still the natural default for events more than one window may want.
   measurements behind this are in `docs/audio-capture.md`.
 - Reset macOS permissions when re-testing:
   ```
-  tccutil reset Accessibility com.tao.saytype
-  tccutil reset Microphone com.tao.saytype
+  tccutil reset Accessibility com.tao.typealoud
+  tccutil reset Microphone com.tao.typealoud
   ```
 
 ## Coding Style
@@ -299,7 +299,7 @@ still the natural default for events more than one window may want.
   names. The Rust is formatted by hand and the repo has no `rustfmt.toml`, so `cargo fmt` would
   rewrite whole files; leave it out.
 - UI strings go in `src/views/i18n.js`. Window scripts reach the backend only through
-  `ipc-bridge.js` (`window.__SAYTYPE_IPC__`), never through Tauri APIs directly.
+  `ipc-bridge.js` (`window.__TYPEALOUD_IPC__`), never through Tauri APIs directly.
 
 ## Commits and Pull Requests
 
@@ -323,6 +323,6 @@ permission changes and platform-specific behavior explicitly.
   translation was removed on 2026-09-25 as unused.
 - Rust unit tests sit beside the code. A few tests that need real model assets are `#[ignore]` and
   run manually.
-- Lifecycle logs (the `saytype_lifecycle` target) never contain transcript text;
+- Lifecycle logs (the `typealoud_lifecycle` target) never contain transcript text;
   `node scripts/dictation-report.mjs <log>` summarizes them offline.
 - When judging capture health, measure the signal level over time, not how quickly a call returns.

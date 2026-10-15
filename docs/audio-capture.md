@@ -144,10 +144,10 @@ stack is much heavier.
 
 ## Diagnostics
 
-Three log lines on the `saytype_lifecycle` target survive release-level filtering:
+Three log lines on the `typealoud_lifecycle` target survive release-level filtering:
 
 ```bash
-grep -aE "audio-capture|audio-onset|audio-envelope" ~/Library/Logs/com.tao.saytype/SayType.log | tail
+grep -aE "audio-capture|audio-onset|audio-envelope" ~/Library/Logs/com.tao.typealoud/TypeAloud.log | tail
 ```
 
 - `audio-capture`: device, `getSettings()`, AudioContext state and `mic_ms`, how long opening the

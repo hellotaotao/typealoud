@@ -31,6 +31,7 @@
 //! fn insert_text(text: &str) -> InsertResult;
 //! fn focused_window_center() -> Option<(f64, f64)>;
 //! fn set_auto_launch(enabled: bool) -> anyhow::Result<()>;
+//! fn migrate_legacy_login_item(legacy_label: &str);
 //! fn supports_local_first() -> bool;
 //! fn watch_app_activation(on_activate: ActivationCallback);
 //! ```

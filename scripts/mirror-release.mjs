@@ -60,7 +60,7 @@ function writeJson(name, value) {
   return file;
 }
 
-const dir = mkdtempSync(join(tmpdir(), "saytype-mirror-"));
+const dir = mkdtempSync(join(tmpdir(), "typealoud-mirror-"));
 try {
   execFileSync("npm", ["install", "--silent", "--no-audit", "--no-fund", "--prefix", dir, BLOB_SDK], { stdio: "inherit" });
   const sdk = await import(pathToFileURL(createRequire(join(dir, "package.json")).resolve("@vercel/blob")).href);

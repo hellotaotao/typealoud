@@ -40,8 +40,8 @@ function harness(options = {}) {
   const stream = { getTracks: () => [], getAudioTracks: () => [] };
   const context = vm.createContext({
     window: {
-      __sayTypeInputPromptStarted: true,
-      __SAYTYPE_IPC__: {
+      __typeAloudInputPromptStarted: true,
+      __TYPEALOUD_IPC__: {
         async invoke(command, ...args) {
           calls.push([command, ...args]);
           return options.invoke ? options.invoke(command, ...args) : null;
@@ -49,8 +49,8 @@ function harness(options = {}) {
         on(name, handler) { listeners.set(name, handler); },
         createChannel: (handler) => ({ onmessage: handler }),
       },
-      SayTypeI18n: { t: (key) => key, initI18n() {}, setLanguage() {}, applyI18n() {} },
-      SayTypeChunk: chunkDecision,
+      TypeAloudI18n: { t: (key) => key, initI18n() {}, setLanguage() {}, applyI18n() {} },
+      TypeAloudChunk: chunkDecision,
       AudioContext: FakeAudioContext,
       addEventListener() {},
     },
@@ -244,7 +244,7 @@ test("raw-audio IPC uses session-provider at argument six", async () => {
     Headers, Uint8Array, ArrayBuffer,
   });
   vm.runInContext(read("./ipc-bridge.js"), context);
-  await context.window.__SAYTYPE_IPC__.invoke("transcribe-audio", new Uint8Array([1]), "audio/wav", 1, 0, undefined, undefined, "local");
+  await context.window.__TYPEALOUD_IPC__.invoke("transcribe-audio", new Uint8Array([1]), "audio/wav", 1, 0, undefined, undefined, "local");
   const headers = calls[0][2].headers;
   const header = (key) => headers instanceof Headers ? headers.get(key) : headers[key];
   assert.equal(header("session-provider"), "local");

@@ -1,7 +1,7 @@
 document.documentElement.setAttribute("data-ax-cloud-js-ran", "1");
 
-const ipc = window.__SAYTYPE_IPC__;
-const { initI18n, t } = window.SayTypeI18n;
+const ipc = window.__TYPEALOUD_IPC__;
+const { initI18n, t } = window.TypeAloudI18n;
 
 async function initAxCloud() {
   // Pull the UI language from settings so the cloud matches the rest of the

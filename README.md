@@ -86,8 +86,8 @@ Settings, where you can also view exactly what is sent. Every connection the app
 ## Reset macOS permissions for repeated testing
 
 ```
-tccutil reset Accessibility com.tao.saytype
-tccutil reset Microphone com.tao.saytype
+tccutil reset Accessibility com.tao.typealoud
+tccutil reset Microphone com.tao.typealoud
 ```
 
 ## License
@@ -187,8 +187,8 @@ TypeAloud 使用系统默认的输入设备录音;要换麦克风,请在系统�
 ## 重复测试时重置 macOS 权限
 
 ```
-tccutil reset Accessibility com.tao.saytype
-tccutil reset Microphone com.tao.saytype
+tccutil reset Accessibility com.tao.typealoud
+tccutil reset Microphone com.tao.typealoud
 ```
 
 ## 许可证

@@ -1,4 +1,4 @@
-// Frontend VAD gate. Classic script. Exposes window.SayTypeVadGate.analyze(blob):
+// Frontend VAD gate. Classic script. Exposes window.TypeAloudVadGate.analyze(blob):
 // no-speech verdict for the whole clip, plus — when the clip carries enough
 // leading/trailing silence — a head/tail-trimmed 16 kHz mono WAV to upload
 // instead of the raw recording. Trimming exists because Whisper (zh) fills
@@ -99,21 +99,21 @@
       for await (const seg of vad.run(pcm, TARGET_RATE)) {
         segments.push({ start: seg.start, end: seg.end });
       }
-      const verdict = window.SayTypeVad.decideSpeech(segments, MIN_SPEECH_MS);
+      const verdict = window.TypeAloudVad.decideSpeech(segments, MIN_SPEECH_MS);
       let wav = null;
       let trimmedMs = 0;
       if (verdict.speech) {
-        const range = window.SayTypeVad.trimRangeMs(segments, durationMs, {
+        const range = window.TypeAloudVad.trimRangeMs(segments, durationMs, {
           padStartMs: PAD_START_MS,
           padEndMs: PAD_END_MS,
         });
-        if (window.SayTypeVad.shouldTrim(range, durationMs, MIN_TRIM_SAVINGS_MS)) {
+        if (window.TypeAloudVad.shouldTrim(range, durationMs, MIN_TRIM_SAVINGS_MS)) {
           const startSample = Math.max(0, Math.floor((range.startMs / 1000) * TARGET_RATE));
           const endSample = Math.min(pcm.length, Math.ceil((range.endMs / 1000) * TARGET_RATE));
-          wav = window.SayTypeVad.encodeWavPcm16(pcm.subarray(startSample, endSample), TARGET_RATE);
+          wav = window.TypeAloudVad.encodeWavPcm16(pcm.subarray(startSample, endSample), TARGET_RATE);
           trimmedMs = Math.round(durationMs - (range.endMs - range.startMs));
         } else if (forceWav) {
-          wav = window.SayTypeVad.encodeWavPcm16(pcm, TARGET_RATE);
+          wav = window.TypeAloudVad.encodeWavPcm16(pcm, TARGET_RATE);
         }
       }
       return { speech: verdict.speech, totalSpeechMs: verdict.totalSpeechMs, durationMs, wav, trimmedMs };
@@ -141,7 +141,7 @@
   async function encodeFullWav(blob) {
     return runExclusive(async () => {
       const pcm = await blobToPcm16k(blob);
-      return window.SayTypeVad.encodeWavPcm16(pcm, TARGET_RATE);
+      return window.TypeAloudVad.encodeWavPcm16(pcm, TARGET_RATE);
     });
   }
 
@@ -162,5 +162,5 @@
     });
   }
 
-  window.SayTypeVadGate = { analyze, warmup, encodeFullWav, hasSpeech };
+  window.TypeAloudVadGate = { analyze, warmup, encodeFullWav, hasSpeech };
 })();

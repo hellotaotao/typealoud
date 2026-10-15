@@ -294,7 +294,7 @@ pub fn get_diagnostic_log(
     .path()
     .app_log_dir()
     .map_err(stringify_error)?
-    .join("SayType.log");
+    .join("TypeAloud.log");
   read_diagnostic_log_file(&path)
 }
 
@@ -347,12 +347,12 @@ pub fn report_audio_probe(
   if window.label() != "input-prompt" {
     return Err("audio probe reports are only accepted from input-prompt".into());
   }
-  // saytype_lifecycle is kept at INFO in release builds, unlike saytype_lib::*,
+  // typealoud_lifecycle is kept at INFO in release builds, unlike typealoud_lib::*,
   // so these lines survive in a packaged build the way the other frontend
   // lifecycle lines do. ":slow" additionally makes the bad case greppable.
   let level = if report.slow { log::Level::Warn } else { log::Level::Info };
   log::log!(
-    target: "saytype_lifecycle",
+    target: "typealoud_lifecycle",
     level,
     "{}{} session_id={} {}",
     report.stage.as_str(),
@@ -369,7 +369,7 @@ pub fn report_audio_probe(
 #[tauri::command]
 pub async fn probe_native_capture(seconds: f64) -> Result<String, String> {
   let seconds = seconds.clamp(1.0, 15.0);
-  log::info!(target: "saytype_lifecycle", "native-capture entered seconds={seconds}");
+  log::info!(target: "typealoud_lifecycle", "native-capture entered seconds={seconds}");
   tokio::task::spawn_blocking(move || crate::native_capture::probe_capture(seconds))
     .await
     .map_err(stringify_error)?
@@ -390,12 +390,12 @@ pub async fn probe_native_capture(seconds: f64) -> Result<String, String> {
         peak,
         env.iter().map(|d| d.to_string()).collect::<Vec<_>>().join(",")
       );
-      log::info!(target: "saytype_lifecycle", "native-capture {summary}");
+      log::info!(target: "typealoud_lifecycle", "native-capture {summary}");
       summary
     })
     .map_err(|error| {
       let message = stringify_error(error);
-      log::warn!(target: "saytype_lifecycle", "native-capture failed: {message}");
+      log::warn!(target: "typealoud_lifecycle", "native-capture failed: {message}");
       message
     })
 }
@@ -417,7 +417,7 @@ pub async fn start_native_capture(
     ));
   }
   log::info!(
-    target: "saytype_lifecycle",
+    target: "typealoud_lifecycle",
     "native-capture start session_id={session_id}"
   );
   let capture_state = state.inner().clone();
@@ -451,7 +451,7 @@ pub async fn stop_native_capture(
   .map_err(|error| crate::native_capture::NativeCaptureError::failed(stringify_error(error)))?
   .map_err(crate::native_capture::NativeCaptureError::from)?;
   log::info!(
-    target: "saytype_lifecycle",
+    target: "typealoud_lifecycle",
     "native-capture stopped session_id={} input_samples={} output_samples={} peak={:.4} clipped={} channel_failures={}",
     stats.session_id,
     stats.input_samples,
@@ -479,7 +479,7 @@ pub fn report_transcription_lifecycle(
   }
   let level = if report.event.is_warning() { log::Level::Warn } else { log::Level::Info };
   log::log!(
-    target: "saytype_lifecycle",
+    target: "typealoud_lifecycle",
     level,
     "frontend session_id={} phase={} event={} elapsed_ms={} chunk_index={:?} pending_count={:?}",
     report.session_id,
@@ -846,7 +846,7 @@ pub fn get_app_version() -> String {
 #[serde(rename_all = "camelCase")]
 pub struct BuildInfo {
   pub version: String,
-  /// "official" only when CI set SAYTYPE_OFFICIAL_BUILD at compile time
+  /// "official" only when CI set TYPEALOUD_OFFICIAL_BUILD at compile time
   /// (see build.rs); any local build is "dev".
   pub channel: String,
   pub build_number: u64,
@@ -861,11 +861,11 @@ pub struct BuildInfo {
 pub fn get_build_info() -> BuildInfo {
   BuildInfo {
     version: env!("CARGO_PKG_VERSION").into(),
-    channel: env!("SAYTYPE_BUILD_CHANNEL").into(),
-    build_number: env!("SAYTYPE_BUILD_NUMBER").parse().unwrap_or(0),
-    git_hash: env!("SAYTYPE_GIT_HASH").into(),
-    git_dirty: env!("SAYTYPE_GIT_DIRTY") == "true",
-    build_time: env!("SAYTYPE_BUILD_TIME").parse().unwrap_or(0),
+    channel: env!("TYPEALOUD_BUILD_CHANNEL").into(),
+    build_number: env!("TYPEALOUD_BUILD_NUMBER").parse().unwrap_or(0),
+    git_hash: env!("TYPEALOUD_GIT_HASH").into(),
+    git_dirty: env!("TYPEALOUD_GIT_DIRTY") == "true",
+    build_time: env!("TYPEALOUD_BUILD_TIME").parse().unwrap_or(0),
     debug: cfg!(debug_assertions),
   }
 }
@@ -1186,7 +1186,7 @@ pub async fn transcribe_audio(
 
   if let Some(chunk_index) = chunk_index {
     log::info!(
-      target: "saytype_lifecycle",
+      target: "typealoud_lifecycle",
       "audio-chunk:received session_id={} chunk_index={chunk_index} bytes={}",
       session_id.map_or_else(|| "none".to_owned(), |id| id.to_string()),
       audio_buffer.len(),
@@ -1290,7 +1290,7 @@ pub async fn transcribe_audio(
       let (text, detail) = scrub_transcription_with_chunk_diagnostics(&raw);
       if let Some(chunk_index) = chunk_index {
         log::info!(
-          target: "saytype_lifecycle",
+          target: "typealoud_lifecycle",
           "audio-chunk:complete session_id={} chunk_index={chunk_index} {detail}",
           session_id.map_or_else(|| "none".to_owned(), |id| id.to_string()),
         );
@@ -2661,7 +2661,7 @@ mod tests {
   #[test]
   fn diagnostic_log_reader_returns_content_and_metadata() {
     let path = std::env::temp_dir().join(format!(
-      "saytype-diagnostic-log-{}-{}.log",
+      "typealoud-diagnostic-log-{}-{}.log",
       std::process::id(),
       Utc::now().timestamp_micros()
     ));
@@ -2679,7 +2679,7 @@ mod tests {
   #[test]
   fn missing_diagnostic_log_is_an_empty_success() {
     let path = std::env::temp_dir().join(format!(
-      "saytype-missing-diagnostic-log-{}-{}.log",
+      "typealoud-missing-diagnostic-log-{}-{}.log",
       std::process::id(),
       Utc::now().timestamp_micros()
     ));
@@ -2696,7 +2696,7 @@ mod tests {
 
   #[test]
   fn build_info_defaults_to_dev_channel_with_camel_case_fields() {
-    // Test builds never set SAYTYPE_OFFICIAL_BUILD, so build.rs must have
+    // Test builds never set TYPEALOUD_OFFICIAL_BUILD, so build.rs must have
     // embedded the fail-safe "dev" channel.
     let info = get_build_info();
     assert_eq!(info.channel, "dev");

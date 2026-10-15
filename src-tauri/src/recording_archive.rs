@@ -17,7 +17,7 @@ const DIR_NAME: &str = "debug-dictations";
 const RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 pub fn enabled(config_flag: bool) -> bool {
-  config_flag && env!("SAYTYPE_BUILD_CHANNEL") != "official"
+  config_flag && env!("TYPEALOUD_BUILD_CHANNEL") != "official"
 }
 
 /// Session ids restart at every launch, so a launch stamp keeps names unique.

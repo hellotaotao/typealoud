@@ -194,14 +194,7 @@ pub fn set_auto_launch(enabled: bool) -> Result<()> {
   let plist_path = agent_dir.join(format!("{}.plist", APP_IDENTIFIER));
 
   if enabled {
-    let executable = std::env::current_exe().context("failed to resolve executable path")?;
-    let plist = format!(
-      "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n  <key>Label</key>\n  <string>{label}</string>\n  <key>ProgramArguments</key>\n  <array>\n    <string>{executable}</string>\n  </array>\n  <key>RunAtLoad</key>\n  <true/>\n  <key>KeepAlive</key>\n  <false/>\n</dict>\n</plist>\n",
-      label = APP_IDENTIFIER,
-      executable = executable.display(),
-    );
-    fs::write(&plist_path, plist)
-      .with_context(|| format!("failed to write {}", plist_path.display()))?;
+    write_login_item_plist(&plist_path)?;
     // Best-effort: unload fails whenever the agent isn't currently loaded.
     let _ = Command::new("launchctl")
       .args(["unload", plist_path.to_string_lossy().as_ref()])
@@ -229,6 +222,38 @@ pub fn set_auto_launch(enabled: bool) -> Result<()> {
   }
 
   Ok(())
+}
+
+fn write_login_item_plist(plist_path: &std::path::Path) -> Result<()> {
+  let executable = std::env::current_exe().context("failed to resolve executable path")?;
+  let plist = format!(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n  <key>Label</key>\n  <string>{label}</string>\n  <key>ProgramArguments</key>\n  <array>\n    <string>{executable}</string>\n  </array>\n  <key>RunAtLoad</key>\n  <true/>\n  <key>KeepAlive</key>\n  <false/>\n</dict>\n</plist>\n",
+    label = APP_IDENTIFIER,
+    executable = executable.display(),
+  );
+  fs::write(plist_path, plist).with_context(|| format!("failed to write {}", plist_path.display()))
+}
+
+/// Replace a pre-rename login item. Its plist names the old label and the old
+/// executable, so it would fail at the next login while the current identifier
+/// has none. The new plist is written without `launchctl load`: loading a
+/// `RunAtLoad` agent spawns a second instance now, and launchd reads the
+/// LaunchAgents directory at the next login anyway.
+pub fn migrate_legacy_login_item(legacy_label: &str) {
+  let Some(agent_dir) = dirs::home_dir().map(|home| home.join("Library").join("LaunchAgents")) else {
+    return;
+  };
+  let legacy = agent_dir.join(format!("{legacy_label}.plist"));
+  if !legacy.exists() {
+    return;
+  }
+  let _ = Command::new("launchctl")
+    .args(["unload", legacy.to_string_lossy().as_ref()])
+    .status();
+  let _ = fs::remove_file(&legacy);
+  if let Err(error) = write_login_item_plist(&agent_dir.join(format!("{}.plist", APP_IDENTIFIER))) {
+    eprintln!("legacy login item migration failed: {error:#}");
+  }
 }
 
 pub fn supports_local_first() -> bool {
@@ -580,32 +605,32 @@ mod tests {
   fn finder_reveal_prefers_the_app_bundle_over_the_binary() {
     use std::path::Path;
     assert_eq!(
-      finder_reveal_target(Path::new("/Applications/TypeAloud.app/Contents/MacOS/saytype")),
+      finder_reveal_target(Path::new("/Applications/TypeAloud.app/Contents/MacOS/typealoud")),
       Path::new("/Applications/TypeAloud.app")
     );
     // Bare dev binary (no bundle ancestor) → reveal the executable itself.
     assert_eq!(
-      finder_reveal_target(Path::new("/Users/tao/code/TypeAloud/target/debug/saytype")),
-      Path::new("/Users/tao/code/TypeAloud/target/debug/saytype")
+      finder_reveal_target(Path::new("/Users/tao/code/TypeAloud/target/debug/typealoud")),
+      Path::new("/Users/tao/code/TypeAloud/target/debug/typealoud")
     );
   }
 
   #[test]
   fn app_bundle_is_some_only_inside_a_real_bundle() {
     use std::path::Path;
-    // Installed: exe = TypeAloud.app/Contents/MacOS/saytype, and three levels up is the bundle.
+    // Installed: exe = TypeAloud.app/Contents/MacOS/typealoud, and three levels up is the bundle.
     assert_eq!(
-      app_bundle_of(Path::new("/Applications/TypeAloud.app/Contents/MacOS/saytype")),
+      app_bundle_of(Path::new("/Applications/TypeAloud.app/Contents/MacOS/typealoud")),
       Some(Path::new("/Applications/TypeAloud.app"))
     );
     // Dev bare binary: no .app ancestor → None (so the cloud stays hidden).
     assert_eq!(
-      app_bundle_of(Path::new("/Users/tao/code/TypeAloud/target/debug/saytype")),
+      app_bundle_of(Path::new("/Users/tao/code/TypeAloud/target/debug/typealoud")),
       None
     );
     // Three levels up exists but isn't a .app, so it doesn't count either.
     assert_eq!(
-      app_bundle_of(Path::new("/a/b/c/d/saytype")),
+      app_bundle_of(Path::new("/a/b/c/d/typealoud")),
       None
     );
   }

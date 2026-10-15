@@ -182,7 +182,7 @@ mainland China. macOS builds stay universal.
 
 **Mainland-China mirror.** GitHub is slow or unreachable from mainland China, so the files a
 mainland user needs are also served from `https://typealoud.app/download/`. That path is a
-rewrite in the `saytype-web` repo's `vercel.json` to the Vercel Blob store `saytype-downloads`
+rewrite in the `typealoud-web` repo's `vercel.json` to the Vercel Blob store `saytype-downloads`
 (Hong Kong region, public), so nothing there needs ICP filing. It holds:
 
 - `runtime/…`: the llama.cpp and nemo-speech archives, uploaded by hand when a pinned runtime version
@@ -423,7 +423,7 @@ Claude API(`claude-sonnet-5`)→ 面向用户的中英双语说明,用 `gh relea
 GitHub Releases 托管安装包,也是自动更新的主要来源,在中国大陆以外稳定可靠。macOS 继续构建通用二进制。
 
 **大陆镜像。** 大陆访问 GitHub 很慢甚至连不上,所以大陆用户需要的文件在 `https://typealoud.app/download/`
-也放了一份。这个路径是 `saytype-web` 仓库 `vercel.json` 里的一条转发规则,指向 Vercel Blob 存储
+也放了一份。这个路径是 `typealoud-web` 仓库 `vercel.json` 里的一条转发规则,指向 Vercel Blob 存储
 `saytype-downloads`(香港区,公开读),所以不涉及 ICP 备案。里面有:
 
 - `runtime/…`:llama.cpp 和 nemo-speech 的运行时包。锁定的运行时版本变了才需要手动重传

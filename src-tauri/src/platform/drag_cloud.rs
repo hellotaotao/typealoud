@@ -59,7 +59,7 @@ unsafe impl objc::Encode for NSRect {
 }
 
 /// The bundle path is stashed in an ivar; the drag reads it back to build an NSURL.
-const IVAR_BUNDLE_PATH: &str = "_sayTypeBundlePath";
+const IVAR_BUNDLE_PATH: &str = "_typeAloudBundlePath";
 
 fn nsstring(value: &str) -> *mut Object {
   // stringWithUTF8String: needs a NUL-terminated C string; CString guarantees it.
@@ -127,8 +127,8 @@ fn overlay_class() -> &'static Class {
   unsafe {
     REGISTER.call_once(|| {
       let superclass = class!(NSView);
-      let mut decl = ClassDecl::new("SayTypeDragCloudOverlay", superclass)
-        .expect("SayTypeDragCloudOverlay already registered");
+      let mut decl = ClassDecl::new("TypeAloudDragCloudOverlay", superclass)
+        .expect("TypeAloudDragCloudOverlay already registered");
       decl.add_ivar::<*mut Object>(IVAR_BUNDLE_PATH);
       decl.add_method(
         sel!(mouseDragged:),

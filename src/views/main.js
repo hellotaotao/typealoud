@@ -1,7 +1,7 @@
 document.documentElement.setAttribute("data-main-js-ran", "1");
 
-const ipc = window.__SAYTYPE_IPC__;
-const { initI18n, setLanguage, applyI18n, t, getLocale, localizeRetryError } = window.SayTypeI18n;
+const ipc = window.__TYPEALOUD_IPC__;
+const { initI18n, setLanguage, applyI18n, t, getLocale, localizeRetryError } = window.TypeAloudI18n;
 
 const THEME_PREFS = new Set(["auto", "midnight", "elegant"]);
 const RECENT_LIMIT = 12;
@@ -68,10 +68,10 @@ function engineReady(settings) {
 async function initializeMainPage() {
   // The entry script runs twice (the <script> tag plus the Rust on-page-load
   // injection); guard so listeners and data loads are only wired up once.
-  if (window.__sayTypeMainStarted) {
+  if (window.__typeAloudMainStarted) {
     return;
   }
-  window.__sayTypeMainStarted = true;
+  window.__typeAloudMainStarted = true;
   onboardingPolicy = await import("./onboarding-layout.mjs");
 
   try {
@@ -1063,7 +1063,7 @@ async function selectEngine(providerChoice) {
   engineSwitchPending = true;
   renderEngineCard();
   try {
-    const ready = await window.SayTypeSettings.runEngineChange(async (actualSettings) => {
+    const ready = await window.TypeAloudSettings.runEngineChange(async (actualSettings) => {
       const active = option.model
         ? actualSettings.provider === "local" && actualSettings.model === option.model
         : actualSettings.provider === providerChoice;
@@ -1380,7 +1380,7 @@ async function obSelectLocal(model) {
   if (!cachedSettings?.localCapable || (model === NEMOTRON_LOCAL_MODEL && !nemotronOffered()) || obSelectionPending) return false;
   obSelectionPending = true;
   try {
-    await window.SayTypeSettings.runEngineChange(async () => {
+    await window.TypeAloudSettings.runEngineChange(async () => {
       const saved = await ipc.invoke("set-local-model", model);
       if (saved === false) throw new Error("Engine switch was not saved");
     });
@@ -1438,7 +1438,7 @@ async function obChooseCloud(provider) {
   obKeyError = "";
   renderObKey();
   try {
-    await window.SayTypeSettings.runEngineChange(async () => {
+    await window.TypeAloudSettings.runEngineChange(async () => {
       const saved = await ipc.invoke("set-provider", provider);
       if (saved === false) throw new Error("Engine switch was not saved");
     });
@@ -1815,7 +1815,7 @@ async function obEnableMic() {
   renderObMic();
   try {
     if (cachedSettings?.os === "windows") {
-      await window.SayTypeMicrophone.probe(ipc, "windows");
+      await window.TypeAloudMicrophone.probe(ipc, "windows");
     } else {
       // A momentary capture purely to trigger the macOS microphone prompt now,
       // instead of surprising the user mid-first-dictation.
@@ -1992,7 +1992,7 @@ async function obSaveKey() {
   renderObLocal();
   renderObKey();
   try {
-    await window.SayTypeSettings.runEngineChange(() => ipc.invoke("save-onboarding-api-key", provider, key));
+    await window.TypeAloudSettings.runEngineChange(() => ipc.invoke("save-onboarding-api-key", provider, key));
     obKeyStatus = "saved";
     if (input) {
       input.value = "";
@@ -2665,7 +2665,7 @@ async function showPage(pageId, options = {}) {
     void refreshDictionaryLocalNote();
   }
   if (pageId === "settings") {
-    await window.SayTypeSettings?.show?.(options.settingsTarget || null);
+    await window.TypeAloudSettings?.show?.(options.settingsTarget || null);
   }
   return !!page;
 }

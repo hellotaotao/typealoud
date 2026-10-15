@@ -43,7 +43,7 @@ pub fn local_tier() -> LocalTier {
     };
     let tier = tier_for(Some(&profile));
     log::info!(
-      target: "saytype_lifecycle",
+      target: "typealoud_lifecycle",
       "hardware:profile memory_bytes={} logical_cpus={} local_tier={tier:?}",
       profile.memory_bytes, profile.logical_cpus,
     );

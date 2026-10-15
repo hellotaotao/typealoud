@@ -44,5 +44,5 @@
     return await report(ipc, os, outcome);
   }
 
-  window.SayTypeMicrophone = { open, probe, report };
+  window.TypeAloudMicrophone = { open, probe, report };
 })();

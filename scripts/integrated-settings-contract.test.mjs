@@ -174,7 +174,7 @@ test("Nemotron is hidden wherever no wired runtime exists", () => {
 
 test("main page owns the Settings controller", () => {
   assert.match(mainHtml, /<script src="main\.js"><\/script>\s*<script src="settings\.js"><\/script>/);
-  assert.match(settingsJs, /window\.SayTypeSettings\s*=/);
+  assert.match(settingsJs, /window\.TypeAloudSettings\s*=/);
   assert.match(settingsJs, /#settings-page/);
   assert.doesNotMatch(settingsJs, /invoke\("close-settings"\)/);
   assert.match(mainJs, /ipc\.on\("open-settings-page"/);
@@ -281,7 +281,7 @@ test("System settings contains a collapsed diagnostic log viewer with refresh an
 
   assert.match(commandsRs, /pub fn get_diagnostic_log/);
   assert.match(commandsRs, /window\.label\(\) != "main"/);
-  assert.match(commandsRs, /join\("SayType\.log"\)/);
+  assert.match(commandsRs, /join\("TypeAloud\.log"\)/);
 });
 
 test("unrequested microphone permission is not reported as granted", () => {

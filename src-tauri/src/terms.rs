@@ -369,7 +369,7 @@ mod tests {
     for text in [
       "tauri.conf.json", "qwen_model", "`openai`", "https://github.com/openai", "huggingface.co/nvidia",
       "tauri-cli", "win-vulkan-x64", "python3 -m http.server", "window's entry script", "Intel i5",
-      "sherpa-onnx in-process", "build:linux", "SAYTYPE_POSTHOG_KEY", "nemotron_asr.rs", "a@openai",
+      "sherpa-onnx in-process", "build:linux", "TYPEALOUD_POSTHOG_KEY", "nemotron_asr.rs", "a@openai",
       "`.onnx`", "provider=openai", "\"openai\"",
     ] {
       assert_eq!(correct(text), text, "{text:?}");
@@ -401,11 +401,11 @@ mod tests {
   }
 
   // Manual check against a real corpus, one transcription per line:
-  //   SAYTYPE_TERMS_CORPUS=/path/to/lines.txt cargo test terms::tests::report -- --ignored --nocapture
+  //   TYPEALOUD_TERMS_CORPUS=/path/to/lines.txt cargo test terms::tests::report -- --ignored --nocapture
   #[test]
   #[ignore]
   fn report_changes_on_a_local_corpus() {
-    let path = std::env::var("SAYTYPE_TERMS_CORPUS").expect("SAYTYPE_TERMS_CORPUS");
+    let path = std::env::var("TYPEALOUD_TERMS_CORPUS").expect("TYPEALOUD_TERMS_CORPUS");
     let terms = Terms::new(&[]);
     let mut changed = 0;
     for line in std::fs::read_to_string(path).expect("corpus").lines() {

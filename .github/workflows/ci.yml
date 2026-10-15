@@ -96,7 +96,7 @@ jobs:
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: saytype-${{ matrix.label }}
+          name: typealoud-${{ matrix.label }}
           if-no-files-found: warn
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg

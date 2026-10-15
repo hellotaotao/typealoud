@@ -20,7 +20,7 @@ test('late copy failure does not replace a newer recording status',async()=>{
 function micHarness(getUserMedia,invoke=async(_command,outcome)=>({status:outcome==='ok'?'granted':outcome})) {
  const context=vm.createContext({window:{},navigator:{mediaDevices:{getUserMedia}},console:{warn(){}},setTimeout,clearTimeout});
  vm.runInContext(readFileSync(new URL('./microphone-access.js',import.meta.url),'utf8'),context);
- return {mic:context.window.SayTypeMicrophone,ipc:{invoke}};
+ return {mic:context.window.TypeAloudMicrophone,ipc:{invoke}};
 }
 test('Windows probe closes every track before publishing readiness and never transcribes',async()=>{
  const calls=[];const {mic,ipc}=micHarness(async constraints=>{assert.equal(constraints.audio.echoCancellation,false);return{getTracks:()=>[{stop:()=>calls.push('stop')}]};},async(command,outcome)=>{calls.push([command,outcome]);return{status:'granted'};});
@@ -66,7 +66,7 @@ test('Windows Settings displays unknown, no-device and errors without claiming d
 test('Windows Settings retry probes even after previous denial rather than reopening Settings forever',async()=>{
  let probes=0;const calls=[];
  const button={disabled:false};
- const c=vm.createContext({ipc:{invoke:async cmd=>{calls.push(cmd);return{status:'denied'};}},currentSettings:{os:'windows'},microphoneProbeBusy:false,window:{SayTypeMicrophone:{probe:async()=>{probes++;}}},document:{getElementById:()=>button},checkMicrophonePermissionStatus:async()=>{},console});
+ const c=vm.createContext({ipc:{invoke:async cmd=>{calls.push(cmd);return{status:'denied'};}},currentSettings:{os:'windows'},microphoneProbeBusy:false,window:{TypeAloudMicrophone:{probe:async()=>{probes++;}}},document:{getElementById:()=>button},checkMicrophonePermissionStatus:async()=>{},console});
  vm.runInContext(extractFunction('./settings.js','requestMicrophonePermission'),c);await c.requestMicrophonePermission();
  assert.equal(probes,1);assert(!calls.includes('open-microphone-settings'));
 });

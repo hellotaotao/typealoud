@@ -225,7 +225,7 @@ audio). Qwen does not segment internally.
 - The post-release VAD gate is skipped on this path. Its trimming exists for Whisper's silence
   boilerplate, a cloud problem; Qwen returns empty text for silence.
 - One exception: when a cut happened during recording and the final remainder is 3 s or shorter,
-  Silero checks it first (`remainderIsSilent`, `SayTypeVadGate.hasSpeech`) and a remainder without
+  Silero checks it first (`remainderIsSilent`, `TypeAloudVadGate.hasSpeech`) and a remainder without
   speech is dropped instead of decoded. A cut shortly before release can leave only the pause's
   tail, and Qwen turned such 0.02–0.5 s remainders into "嗯。" or "no." in an offline A/B on
   synthesized Chinese (2026-09-30). There Silero dropped all 39 silent remainders, kept every

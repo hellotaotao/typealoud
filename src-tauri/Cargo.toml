@@ -1,5 +1,5 @@
 [package]
-name = "saytype"
+name = "typealoud"
 version = "1.19.3"
 description = "Voice input method software"
 authors = ["Tao"]
@@ -11,7 +11,7 @@ rust-version = "1.82"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "saytype_lib"
+name = "typealoud_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

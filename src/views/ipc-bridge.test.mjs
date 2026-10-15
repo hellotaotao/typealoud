@@ -21,7 +21,7 @@ function loadBridge() {
     },
   };
   vm.runInNewContext(source, { window });
-  return { bridge: window.__SAYTYPE_IPC__, calls, channels };
+  return { bridge: window.__TYPEALOUD_IPC__, calls, channels };
 }
 
 test("recovered text uses the strict recovery payload command", async () => {

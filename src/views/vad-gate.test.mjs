@@ -41,7 +41,7 @@ function loadVadGate({ segments = [{ start: 0, end: 500 }] } = {}) {
   const window = {
     ort: { env: { wasm: {} } },
     vad: { NonRealTimeVAD: { new: async () => sharedVad } },
-    SayTypeVad: {
+    TypeAloudVad: {
       decideSpeech: () => ({ speech: true, totalSpeechMs: 500 }),
       trimRangeMs: () => ({ startMs: 0, endMs: 100 }),
       shouldTrim: () => false,
@@ -71,7 +71,7 @@ function loadVadGate({ segments = [{ start: 0, end: 500 }] } = {}) {
   vm.runInContext(source, context);
 
   return {
-    gate: window.SayTypeVadGate,
+    gate: window.TypeAloudVadGate,
     maxConcurrentRuns: () => maxConcurrentRuns,
   };
 }

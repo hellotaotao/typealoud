@@ -19,7 +19,7 @@ function createDeferred() {
 }
 
 function loadVoiceInputPrompt(options = {}) {
-  const sourcePath = process.env.SAYTYPE_INPUT_PROMPT_SOURCE || defaultSourcePath;
+  const sourcePath = process.env.TYPEALOUD_INPUT_PROMPT_SOURCE || defaultSourcePath;
   const source = readFileSync(sourcePath, "utf8");
   const quietConsole = {
     log() {},
@@ -38,8 +38,8 @@ function loadVoiceInputPrompt(options = {}) {
     body: { classList: { add() {}, remove() {}, toggle() {} } },
   };
   const window = {
-    __sayTypeInputPromptStarted: true,
-    __SAYTYPE_IPC__: {
+    __typeAloudInputPromptStarted: true,
+    __TYPEALOUD_IPC__: {
       invoke(command, ...args) {
         if (command === "report-transcription-lifecycle" && !options.captureLifecycle) {
           return Promise.resolve(null);
@@ -52,7 +52,7 @@ function loadVoiceInputPrompt(options = {}) {
       on: options.on || (() => {}),
       createChannel: options.createChannel || ((handler) => ({ onmessage: handler })),
     },
-    SayTypeI18n: {
+    TypeAloudI18n: {
       initI18n() {},
       setLanguage() {},
       applyI18n() {},
@@ -60,7 +60,7 @@ function loadVoiceInputPrompt(options = {}) {
         return values?.reason ? `${key}: ${values.reason}` : key;
       },
     },
-    SayTypeVadGate: null,
+    TypeAloudVadGate: null,
     matchMedia() {
       return {
         matches: false,
@@ -710,7 +710,7 @@ test("a macOS native capture failure falls back to WebKit instead of losing the 
 test("native PCM drives Qwen chunking at 16 kHz and retains a recovery WAV", async () => {
   let channelHandler;
   const VoiceInputPrompt = loadVoiceInputPrompt({
-    window: { SayTypeChunk: chunkDecision },
+    window: { TypeAloudChunk: chunkDecision },
     createChannel(handler) {
       channelHandler = handler;
       return {};
@@ -1129,7 +1129,7 @@ test("local recording pipelines stay single-flight through transcription", async
       return Promise.resolve("second text");
     },
     window: {
-      SayTypeVadGate: {
+      TypeAloudVadGate: {
         async analyze() {
           return {
             speech: true,
@@ -1176,7 +1176,7 @@ test("a queued local transcription can be cancelled before native IPC", async ()
       return Promise.resolve(true);
     },
     window: {
-      SayTypeVadGate: {
+      TypeAloudVadGate: {
         async analyze() {
           return {
             speech: true,
@@ -1376,7 +1376,7 @@ test("a local hang surviving the retry is saved as a pending entry", async () =>
       if (command === "save-pending-transcription") return Promise.resolve("entry-1");
       return null;
     },
-    window: { SayTypeVadGate: { analyze: async () => ({ speech: true, wav: new Uint8Array([1, 2, 3]) }) } },
+    window: { TypeAloudVadGate: { analyze: async () => ({ speech: true, wav: new Uint8Array([1, 2, 3]) }) } },
   });
   const prompt = createBarePrompt(VoiceInputPrompt, {
     currentProvider: "local",
@@ -1477,8 +1477,8 @@ function loadForChunking(invoke) {
   return loadVoiceInputPrompt({
     invoke,
     window: {
-      SayTypeChunk: chunkDecision,
-      SayTypeVad: { encodeWavPcm16 },
+      TypeAloudChunk: chunkDecision,
+      TypeAloudVad: { encodeWavPcm16 },
     },
   });
 }
@@ -1669,9 +1669,9 @@ function loadForRemainderVad(invoke, gate) {
   return loadVoiceInputPrompt({
     invoke,
     window: {
-      SayTypeChunk: chunkDecision,
-      SayTypeVad: { encodeWavPcm16 },
-      SayTypeVadGate: gate,
+      TypeAloudChunk: chunkDecision,
+      TypeAloudVad: { encodeWavPcm16 },
+      TypeAloudVadGate: gate,
     },
   });
 }
@@ -1946,9 +1946,9 @@ async function createLifecycleHarness(options = {}) {
     },
     window: {
       AudioContext: FakeAudioContext,
-      SayTypeChunk: chunkDecision,
-      SayTypeVad: { encodeWavPcm16 },
-      SayTypeVadGate: options.vadGate || null,
+      TypeAloudChunk: chunkDecision,
+      TypeAloudVad: { encodeWavPcm16 },
+      TypeAloudVadGate: options.vadGate || null,
     },
     globals: {
       MediaRecorder: FakeMediaRecorder,

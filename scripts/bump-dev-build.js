@@ -4,7 +4,7 @@
 // Increments the local dev build counter (.dev-build-number at the repo root,
 // gitignored — same local-state precedent as scripts/sign.env). Runs before
 // every packaged build; `tauri dev` does not bump. src-tauri/build.rs embeds
-// the value as SAYTYPE_BUILD_NUMBER for the dev-channel version badge.
+// the value as TYPEALOUD_BUILD_NUMBER for the dev-channel version badge.
 
 const fs = require("fs");
 const path = require("path");

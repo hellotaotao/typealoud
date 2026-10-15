@@ -112,9 +112,9 @@ jobs:
             echo "Apple certificate present — build will be signed and notarized."
             # Certificate is multi-line base64, so use a heredoc delimiter.
             {
-              echo "APPLE_CERTIFICATE<<__SAYTYPE_CERT_EOF__"
+              echo "APPLE_CERTIFICATE<<__TYPEALOUD_CERT_EOF__"
               echo "$APPLE_CERTIFICATE"
-              echo "__SAYTYPE_CERT_EOF__"
+              echo "__TYPEALOUD_CERT_EOF__"
               echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
               echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
               echo "APPLE_ID=$APPLE_ID"
@@ -137,10 +137,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Marks this as an official release build (build.rs → clean version
           # badge). Local builds never set it, so they always show as "dev".
-          SAYTYPE_OFFICIAL_BUILD: "1"
+          TYPEALOUD_OFFICIAL_BUILD: "1"
           # PostHog project key for anonymous usage statistics (usage.rs,
           # PRIVACY.md). Unset → the build records locally but never sends.
-          SAYTYPE_POSTHOG_KEY: ${{ secrets.SAYTYPE_POSTHOG_KEY }}
+          TYPEALOUD_POSTHOG_KEY: ${{ secrets.SAYTYPE_POSTHOG_KEY }}
         with:
           # The version comes from Cargo.toml / tauri.conf.json in the tagged commit
           args: ${{ matrix.build-args }}

@@ -41,8 +41,8 @@ jobs:
         env:
           # Same identity as the release build: clean version badge, usage
           # statistics enabled (build.rs, usage.rs).
-          SAYTYPE_OFFICIAL_BUILD: "1"
-          SAYTYPE_POSTHOG_KEY: ${{ secrets.SAYTYPE_POSTHOG_KEY }}
+          TYPEALOUD_OFFICIAL_BUILD: "1"
+          TYPEALOUD_POSTHOG_KEY: ${{ secrets.SAYTYPE_POSTHOG_KEY }}
         run: npx tauri build --target x86_64-pc-windows-msvc --no-bundle
 
       - name: Pack the MSIX

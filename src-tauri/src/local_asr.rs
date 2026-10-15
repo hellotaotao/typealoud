@@ -744,7 +744,7 @@ impl PipelineProgress {
     // One transition retains both the new wait and the previous stage's
     // duration, without doubling the release log volume at each boundary.
     log::info!(
-      target: "saytype_lifecycle",
+      target: "typealoud_lifecycle",
       "native operation={} session_id={:?} chunk_index={:?} phase={} event=start previous_phase={} previous_elapsed_ms={} total_ms={}",
       self.operation, self.session_id, self.chunk_index, phase, previous_phase,
       now.duration_since(entered).as_millis(), self.started.elapsed().as_millis()
@@ -754,7 +754,7 @@ impl PipelineProgress {
   fn report(&self, event: &'static str, level: log::Level) {
     let (phase, entered) = *self.phase.lock().unwrap_or_else(|error| error.into_inner());
     log::log!(
-      target: "saytype_lifecycle",
+      target: "typealoud_lifecycle",
       level,
       "native operation={} session_id={:?} chunk_index={:?} phase={} event={} elapsed_ms={} total_ms={}",
       self.operation, self.session_id, self.chunk_index, phase, event,
@@ -1549,7 +1549,7 @@ async fn transcribe_wav_inner_for(
   }
 
   let tmp_path = std::env::temp_dir().join(format!(
-    "saytype-asr-{}-{}.wav",
+    "typealoud-asr-{}-{}.wav",
     std::process::id(),
     TMP_SEQ.fetch_add(1, Ordering::Relaxed)
   ));
@@ -2406,7 +2406,7 @@ mod tests {
     struct CaptureLogger(Mutex<Vec<String>>);
     impl log::Log for CaptureLogger {
       fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.target() == "saytype_lifecycle"
+        metadata.target() == "typealoud_lifecycle"
       }
       fn log(&self, record: &log::Record<'_>) {
         if self.enabled(record.metadata()) {
@@ -2727,7 +2727,7 @@ mod tests {
   #[test]
   fn legacy_assets_are_removed_without_touching_current_models() {
     let root = std::env::temp_dir().join(format!(
-      "saytype-legacy-assets-{}-{}",
+      "typealoud-legacy-assets-{}-{}",
       std::process::id(),
       TMP_SEQ.fetch_add(1, Ordering::Relaxed)
     ));
@@ -2957,7 +2957,7 @@ mod tests {
   /// machine has, and decode one clip on it. Everything below the settings UI.
   /// Needs the real model assets, plus the Vulkan archive either already
   /// extracted, sitting in the app-data dir, or pointed at by
-  /// `SAYTYPE_TEST_VULKAN_ZIP` (this test never goes to the network). Run:
+  /// `TYPEALOUD_TEST_VULKAN_ZIP` (this test never goes to the network). Run:
   ///   cargo test real_gpu_runtime_decodes -- --ignored --nocapture
   #[test]
   #[ignore]
@@ -2970,8 +2970,8 @@ mod tests {
     if !gpu_runtime_ready_at(&base) {
       let archive = base.join(asset.rel_path);
       if !archive.exists() {
-        let source = std::env::var("SAYTYPE_TEST_VULKAN_ZIP").expect(
-          "GPU pack not installed: set SAYTYPE_TEST_VULKAN_ZIP to the downloaded archive",
+        let source = std::env::var("TYPEALOUD_TEST_VULKAN_ZIP").expect(
+          "GPU pack not installed: set TYPEALOUD_TEST_VULKAN_ZIP to the downloaded archive",
         );
         fs::copy(&source, &archive).expect("stage the archive");
       }
@@ -3093,7 +3093,7 @@ mod tests {
     // Temp file cleaned up:
     let leftovers = fs::read_dir(std::env::temp_dir()).unwrap()
       .filter_map(|e| e.ok())
-      .filter(|e| e.file_name().to_string_lossy().starts_with("saytype-asr-"))
+      .filter(|e| e.file_name().to_string_lossy().starts_with("typealoud-asr-"))
       .count();
     assert_eq!(leftovers, 0, "temp wav files must be removed");
   }
@@ -3118,21 +3118,21 @@ mod tests {
   ///
   /// Needs the real assets plus two 16 kHz mono WAVs of *different* speech —
   /// identical clips cannot tell contamination from a correct repeat:
-  ///   SAYTYPE_TEST_WAV_A=a.wav SAYTYPE_TEST_WAV_B=b.wav \
+  ///   TYPEALOUD_TEST_WAV_A=a.wav TYPEALOUD_TEST_WAV_B=b.wav \
   ///     cargo test real_reuse_contamination_rate -- --ignored --nocapture
   ///
-  /// Optional: `SAYTYPE_TEST_REUSE_SESSIONS` (default 3) and
-  /// `SAYTYPE_TEST_REUSE_CHUNKS` (default 8) size the sample.
+  /// Optional: `TYPEALOUD_TEST_REUSE_SESSIONS` (default 3) and
+  /// `TYPEALOUD_TEST_REUSE_CHUNKS` (default 8) size the sample.
   #[test]
   #[ignore]
   fn real_reuse_contamination_rate() {
     let base = local_asr_dir().expect("assets dir");
     ensure_bundled_runtime_at(&base).expect("install bundled runtime");
     assert!(assets_ready_at(&base), "lay out the model assets first");
-    let path_a = std::env::var("SAYTYPE_TEST_WAV_A").expect("set SAYTYPE_TEST_WAV_A");
-    let path_b = std::env::var("SAYTYPE_TEST_WAV_B").expect("set SAYTYPE_TEST_WAV_B");
-    let wav_a = fs::read(&path_a).expect("read SAYTYPE_TEST_WAV_A");
-    let wav_b = fs::read(&path_b).expect("read SAYTYPE_TEST_WAV_B");
+    let path_a = std::env::var("TYPEALOUD_TEST_WAV_A").expect("set TYPEALOUD_TEST_WAV_A");
+    let path_b = std::env::var("TYPEALOUD_TEST_WAV_B").expect("set TYPEALOUD_TEST_WAV_B");
+    let wav_a = fs::read(&path_a).expect("read TYPEALOUD_TEST_WAV_A");
+    let wav_b = fs::read(&path_b).expect("read TYPEALOUD_TEST_WAV_B");
     assert_ne!(wav_a, wav_b, "the two clips must differ");
     let ctx = ctx_size_for_wav(wav_a.len());
     assert_eq!(ctx, ctx_size_for_wav(wav_b.len()), "both clips must map to one context");
@@ -3140,8 +3140,8 @@ mod tests {
     let sample = |key: &str, default: usize| {
       std::env::var(key).ok().and_then(|value| value.parse().ok()).unwrap_or(default)
     };
-    let sessions = sample("SAYTYPE_TEST_REUSE_SESSIONS", 3);
-    let chunks = sample("SAYTYPE_TEST_REUSE_CHUNKS", 8);
+    let sessions = sample("TYPEALOUD_TEST_REUSE_SESSIONS", 3);
+    let chunks = sample("TYPEALOUD_TEST_REUSE_CHUNKS", 8);
     assert!(sessions >= 1, "measure at least one session");
     assert!(chunks >= 2, "a session needs two chunks before anything is reused");
 

@@ -23,7 +23,7 @@ use crate::settings::{self, AppConfig};
 
 pub const USAGE_FILE_NAME: &str = "usage-stats.json";
 const POSTHOG_HOST: &str = "https://eu.i.posthog.com";
-const POSTHOG_KEY: Option<&str> = option_env!("SAYTYPE_POSTHOG_KEY");
+const POSTHOG_KEY: Option<&str> = option_env!("TYPEALOUD_POSTHOG_KEY");
 /// Days that could not be sent (offline, endpoint down) are kept this long.
 const MAX_UNSENT_DAYS: usize = 30;
 const MAX_QUEUED_EVENTS: usize = 50;
@@ -362,7 +362,7 @@ pub fn preview() -> Value {
 }
 
 fn sending_configured() -> Option<&'static str> {
-  if env!("SAYTYPE_BUILD_CHANNEL") != "official" {
+  if env!("TYPEALOUD_BUILD_CHANNEL") != "official" {
     return None;
   }
   POSTHOG_KEY.filter(|key| !key.trim().is_empty())

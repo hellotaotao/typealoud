@@ -108,8 +108,8 @@ function watchSystemTheme() {
 }
 
 function getDependencies() {
-  const bridge = window.__SAYTYPE_IPC__;
-  const i18nApi = window.SayTypeI18n;
+  const bridge = window.__TYPEALOUD_IPC__;
+  const i18nApi = window.TypeAloudI18n;
 
   if (
     bridge &&
@@ -2005,7 +2005,7 @@ async function requestMicrophonePermission() {
   if (button) button.disabled = true;
   try {
     if (currentSettings?.os === "windows") {
-      await window.SayTypeMicrophone.probe(ipc, "windows");
+      await window.TypeAloudMicrophone.probe(ipc, "windows");
     } else {
       const current = await ipc.invoke("check-microphone-permission");
       if (current?.status === "denied" || current?.status === "restricted") {
@@ -2514,7 +2514,7 @@ async function showSettings(target = null) {
   }
 }
 
-window.SayTypeSettings = {
+window.TypeAloudSettings = {
   show: showSettings,
   inspectEngine,
   runEngineChange,

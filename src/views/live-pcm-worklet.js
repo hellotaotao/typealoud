@@ -4,7 +4,7 @@
 // that path byte-for-byte as it was. Qwen chunking instead resamples each closed
 // chunk through an OfflineAudioContext, which wants float samples, so it asks for
 // "f32" and avoids a needless round trip through Int16 and back.
-class SayTypePcm16CaptureProcessor extends AudioWorkletProcessor {
+class TypeAloudPcm16CaptureProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
     this.float = options?.processorOptions?.format === "f32";
@@ -31,4 +31,4 @@ class SayTypePcm16CaptureProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("saytype-pcm16-capture", SayTypePcm16CaptureProcessor);
+registerProcessor("typealoud-pcm16-capture", TypeAloudPcm16CaptureProcessor);

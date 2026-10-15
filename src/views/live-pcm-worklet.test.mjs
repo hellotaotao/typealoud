@@ -20,7 +20,7 @@ test("audio worklet converts float samples to little-endian PCM16", () => {
   vm.runInNewContext(source, {
     AudioWorkletProcessor,
     registerProcessor(name, implementation) {
-      assert.equal(name, "saytype-pcm16-capture");
+      assert.equal(name, "typealoud-pcm16-capture");
       Processor = implementation;
     },
     Int16Array,

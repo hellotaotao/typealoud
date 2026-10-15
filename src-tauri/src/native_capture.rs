@@ -393,7 +393,7 @@ fn capture_thread(
     let (sample_tx, sample_rx) = mpsc::channel::<Vec<f32>>();
     let processor_channel = channel.clone();
     let processor = std::thread::Builder::new()
-      .name("saytype-audio-resampler".into())
+      .name("typealoud-audio-resampler".into())
       .spawn(move || capture_processor(session_id, input_rate as f64, sample_rx, processor_channel))
       .context("failed to start the native audio resampler")?;
 
@@ -450,7 +450,7 @@ fn capture_thread(
 
   if let Ok(CaptureControl::Error(message)) = control_rx.recv() {
     log::warn!(
-      target: "saytype_lifecycle",
+      target: "typealoud_lifecycle",
       "native-capture stream error session_id={session_id}: {message}"
     );
     send_channel_event(&channel, "error", Some(&message), None);
@@ -487,7 +487,7 @@ pub fn start_capture(
   let (ready_tx, ready_rx) = mpsc::sync_channel(1);
   let thread_control = control_tx.clone();
   let thread = std::thread::Builder::new()
-    .name("saytype-native-capture".into())
+    .name("typealoud-native-capture".into())
     .spawn(move || {
       capture_thread(
         session_id,
@@ -706,7 +706,7 @@ pub fn probe_capture(seconds: f64) -> Result<(String, f64, Vec<f32>)> {
         buf.extend(data.chunks(channels).map(|frame| frame[0]));
       }
     },
-    |error| log::warn!(target: "saytype_lifecycle", "native-capture stream error: {error}"),
+    |error| log::warn!(target: "typealoud_lifecycle", "native-capture stream error: {error}"),
     None,
   )?;
   stream.play()?;

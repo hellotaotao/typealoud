@@ -4165,45 +4165,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "saytype"
-version = "1.19.3"
-dependencies = [
- "anyhow",
- "arboard",
- "chrono",
- "core-foundation 0.10.1",
- "cpal",
- "dirs",
- "enigo",
- "flate2",
- "futures-util",
- "iana-time-zone",
- "log",
- "objc",
- "rdev",
- "regex",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sha2",
- "sysinfo",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
- "tauri-plugin-single-instance",
- "tauri-plugin-updater",
- "tempfile",
- "thiserror 1.0.69",
- "tokio",
- "tokio-tungstenite",
- "tokio-util",
- "uuid",
- "windows-sys 0.61.2",
- "zip",
-]
-
-[[package]]
 name = "schannel"
 version = "0.1.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5596,6 +5557,45 @@ dependencies = [
  "sha1",
  "thiserror 1.0.69",
  "utf-8",
+]
+
+[[package]]
+name = "typealoud"
+version = "1.19.3"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "chrono",
+ "core-foundation 0.10.1",
+ "cpal",
+ "dirs",
+ "enigo",
+ "flate2",
+ "futures-util",
+ "iana-time-zone",
+ "log",
+ "objc",
+ "rdev",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sysinfo",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-updater",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "uuid",
+ "windows-sys 0.61.2",
+ "zip",
 ]
 
 [[package]]

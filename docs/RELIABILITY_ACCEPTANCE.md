@@ -57,7 +57,7 @@ Run from the repository root:
 
 ```sh
 node scripts/dictation-report.mjs --help
-node scripts/dictation-report.mjs "$HOME/Library/Logs/com.tao.saytype/SayType.log" > /private/tmp/saytype-dictation-report.json
+node scripts/dictation-report.mjs "$HOME/Library/Logs/com.tao.typealoud/TypeAloud.log" > /private/tmp/typealoud-dictation-report.json
 ```
 
 For Windows/Linux, pass the actual local log-file path. The macOS command above is only a path example, not a cross-platform location guarantee.

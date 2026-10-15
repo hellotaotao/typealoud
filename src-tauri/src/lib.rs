@@ -35,6 +35,8 @@ const LAUNCH_ACTIVATION_GRACE: std::time::Duration = std::time::Duration::from_s
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  // Before anything resolves the data directory under the current identifier.
+  settings::migrate_legacy_app_data();
   tauri::Builder::default()
     // single-instance MUST be the first plugin. A second launch hands off to
     // the already-running instance (which surfaces its window) and then exits,
@@ -107,7 +109,7 @@ pub fn run() {
     .setup(|app| {
       // Logging: dev → Info to stdout; release → Warn+ and count-only lifecycle
       // Info events to a size-capped rotating
-      // file at ~/Library/Logs/com.tao.saytype/SayType.log, so a shipped build
+      // file at ~/Library/Logs/com.tao.typealoud/TypeAloud.log, so a shipped build
       // still leaves diagnostics when a user reports "nothing happened" (these
       // log calls were previously no-ops in release). API keys and transcribed
       // text are never logged, so the file holds no sensitive content.
@@ -123,16 +125,16 @@ pub fn run() {
           .build()
       } else {
         tauri_plugin_log::Builder::default()
-          // clear the default [Stdout, LogDir] so we only write our SayType.log
+          // clear the default [Stdout, LogDir] so we only write our TypeAloud.log
           // (otherwise lines duplicate and a stray default-named log is created).
           .clear_targets()
           .level(log::LevelFilter::Warn)
           // Lifecycle events contain only fixed labels, IDs and timings. Keep
           // stage entry/exit in release so an unfinished await is diagnosable.
-          .level_for("saytype_lifecycle", log::LevelFilter::Info)
+          .level_for("typealoud_lifecycle", log::LevelFilter::Info)
           .target(tauri_plugin_log::Target::new(
             tauri_plugin_log::TargetKind::LogDir {
-              file_name: Some("SayType".into()),
+              file_name: Some("TypeAloud".into()),
             },
           ))
           // Keep two archived logs plus the active file, about 6 MB in total.

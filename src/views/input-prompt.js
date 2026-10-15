@@ -2,8 +2,8 @@ if (typeof document !== "undefined" && document.documentElement) {
   document.documentElement.setAttribute("data-input-prompt-js-ran", "1");
 }
 
-const ipc = window.__SAYTYPE_IPC__;
-const { initI18n, setLanguage, applyI18n, t } = window.SayTypeI18n;
+const ipc = window.__TYPEALOUD_IPC__;
+const { initI18n, setLanguage, applyI18n, t } = window.TypeAloudI18n;
 
 let isDev = false;
 
@@ -45,7 +45,7 @@ const HISTORY_STAGE_TIMEOUT_MS = 5000;
 // never again once the user has locked a recording.
 const LOCK_TIP_AFTER_MS = 30000;
 const LOCK_TIP_MAX_SHOWS = 3;
-const LOCK_TIP_STORAGE_KEY = "saytype.lockTip";
+const LOCK_TIP_STORAGE_KEY = "typealoud.lockTip";
 const MODEL_LABEL = {
   "gpt-transcribe": "OpenAI GPT Transcribe",
   // Retired from the picker 2026-09; kept so old history rows still render a name.
@@ -441,9 +441,9 @@ class VoiceInputPrompt {
 
   // Prewarm the neural VAD (onnxruntime wasm + Silero model) at launch to move
   // the ~0.5-1s first load off the user's first dictation. It touches no audio
-  // device. window.SayTypeVadGate is defined by vad-gate.js (loaded first).
+  // device. window.TypeAloudVadGate is defined by vad-gate.js (loaded first).
   primeVad() {
-    window.SayTypeVadGate?.warmup?.();
+    window.TypeAloudVadGate?.warmup?.();
   }
 
   // `successorQueued` says a chunk is already sitting behind the current one,
@@ -1308,7 +1308,7 @@ class VoiceInputPrompt {
 
   preserveCompletedChunks(recordingSession) {
     const text = recordingSession.finalText || (recordingSession.chunked &&
-      window.SayTypeChunk.joinChunkTexts(recordingSession.chunked.results));
+      window.TypeAloudChunk.joinChunkTexts(recordingSession.chunked.results));
     if (!hasMeaningfulText(text)) return false;
     this.preserveRecoveryText(recordingSession.id, text, "incomplete");
     return true;
@@ -1416,7 +1416,7 @@ class VoiceInputPrompt {
       if (!recovery.wav) {
         if (!recovery.blob?.size) throw new Error("No complete audio available for recovery");
         recovery.wav = await this.waitForSessionStage(session, "recovery",
-          () => window.SayTypeVadGate.encodeFullWav(recovery.blob), AUDIO_STAGE_TIMEOUT_MS);
+          () => window.TypeAloudVadGate.encodeFullWav(recovery.blob), AUDIO_STAGE_TIMEOUT_MS);
       }
       this.assertSessionActive(session);
       await this.waitForSessionStage(session, "recovery", () =>
@@ -1746,7 +1746,7 @@ class VoiceInputPrompt {
     await this.audioContext.audioWorklet.addModule("live-pcm-worklet.js");
     const live = await this.beginNemotronLive(recordingSession, this.audioContext.sampleRate);
 
-    const node = new AudioWorkletNode(this.audioContext, "saytype-pcm16-capture");
+    const node = new AudioWorkletNode(this.audioContext, "typealoud-pcm16-capture");
     const mutedOutput = this.audioContext.createGain();
     mutedOutput.gain.value = 0;
     live.node = node;
@@ -1848,7 +1848,7 @@ class VoiceInputPrompt {
     return (
       (recordingSession?.provider ?? this.currentProvider) === "local" &&
       (recordingSession?.captureModel ?? this.currentModel) !== NEMOTRON_LOCAL_MODEL_ID &&
-      !!window.SayTypeChunk
+      !!window.TypeAloudChunk
     );
   }
 
@@ -1860,7 +1860,7 @@ class VoiceInputPrompt {
       mutedOutput: null,
       blocks: [],
       blockSamples: 0,
-      state: window.SayTypeChunk.createChunkState(),
+      state: window.TypeAloudChunk.createChunkState(),
       previousLoudRef: 0,
       nextChunkIndex: 0,
       results: [],
@@ -1899,12 +1899,12 @@ class VoiceInputPrompt {
     chunked.accounting.lastPcmAt = performance.now();
     chunked.blocks.push(samples);
     chunked.blockSamples += samples.length;
-    window.SayTypeChunk.pushFrame(
+    window.TypeAloudChunk.pushFrame(
       chunked.state,
-      window.SayTypeChunk.frameRms(samples),
+      window.TypeAloudChunk.frameRms(samples),
       samples.length
     );
-    const cut = window.SayTypeChunk.decideCut(chunked.state, chunked.sampleRate);
+    const cut = window.TypeAloudChunk.decideCut(chunked.state, chunked.sampleRate);
     if (cut) {
       this.closeChunk(chunked, cut.cutAtSample, cut.reason);
     }
@@ -1960,7 +1960,7 @@ class VoiceInputPrompt {
       // "f32" keeps the original float samples: each closed chunk is resampled
       // to 16 kHz through an OfflineAudioContext, so a round trip through Int16
       // here would quantize twice for nothing.
-      const node = new AudioWorkletNode(this.audioContext, "saytype-pcm16-capture", {
+      const node = new AudioWorkletNode(this.audioContext, "typealoud-pcm16-capture", {
         processorOptions: { format: "f32" },
       });
       const mutedOutput = this.audioContext.createGain();
@@ -2021,10 +2021,10 @@ class VoiceInputPrompt {
     chunked.blocks = tail;
     chunked.blockSamples = tail.reduce((total, block) => total + block.length, 0);
     const quietRemainder = reason === "release" && chunked.previousLoudRef > 0 &&
-      window.SayTypeChunk.loudSamples(chunked.state, chunked.previousLoudRef) <
+      window.TypeAloudChunk.loudSamples(chunked.state, chunked.previousLoudRef) <
         REMAINDER_QUIET_LOUD_S * chunked.sampleRate;
     chunked.previousLoudRef = chunked.state.loudRef;
-    chunked.state = window.SayTypeChunk.stateAfterCut(chunked.state, cutAtSample);
+    chunked.state = window.TypeAloudChunk.stateAfterCut(chunked.state, cutAtSample);
     if (head.length) {
       this.enqueueChunkDecode(chunked, head, reason, quietRemainder);
     }
@@ -2134,7 +2134,7 @@ class VoiceInputPrompt {
   // True only when the VAD positively finds no speech. Any failure, a missing
   // VAD or a slow verdict fails open to decoding, which is the old behavior.
   async remainderIsSilent(pcm, sampleRate) {
-    const gate = window.SayTypeVadGate;
+    const gate = window.TypeAloudVadGate;
     if (typeof gate?.hasSpeech !== "function") return false;
     let timer = null;
     try {
@@ -2158,7 +2158,7 @@ class VoiceInputPrompt {
   // audio identical in provenance to what the model is fed today.
   async encodeChunkWav(pcm, sampleRate) {
     const pcm16k = await this.resampleTo16k(pcm, sampleRate);
-    return window.SayTypeVad.encodeWavPcm16(pcm16k, 16000);
+    return window.TypeAloudVad.encodeWavPcm16(pcm16k, 16000);
   }
 
   async resampleTo16k(pcm, sampleRate) {
@@ -2188,7 +2188,7 @@ class VoiceInputPrompt {
     if (chunked.livePartial) {
       parts[chunked.livePartial.index] = chunked.livePartial.text;
     }
-    const text = window.SayTypeChunk.joinChunkTexts(parts);
+    const text = window.TypeAloudChunk.joinChunkTexts(parts);
     if (text) {
       this.setTranscriptionPreview(text);
     }
@@ -2229,7 +2229,7 @@ class VoiceInputPrompt {
       this.reportChunkProbe(chunked, "final", "cancelled");
     }
     this.assertSessionActive(recordingSession);
-    const text = window.SayTypeChunk.joinChunkTexts(chunked.results);
+    const text = window.TypeAloudChunk.joinChunkTexts(chunked.results);
     // Silence is legitimate; a missing chunk is not a complete dictation.
     if (chunked.failedChunks > 0) {
       this.reportChunkProbe(chunked, "final", "decode-error", {}, true);
@@ -2717,7 +2717,7 @@ class VoiceInputPrompt {
       // the hotkey is held. macOS normally records natively (above) and reaches
       // this path only when native capture could not start.
       const stream = this.osName === "windows"
-        ? await window.SayTypeMicrophone.open(ipc, this.osName, AUDIO_CONSTRAINTS)
+        ? await window.TypeAloudMicrophone.open(ipc, this.osName, AUDIO_CONSTRAINTS)
         : await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       const microphoneReadyAt = performance.now();
 
@@ -3353,9 +3353,9 @@ class VoiceInputPrompt {
         // Batch engines run the neural VAD after release. Nemotron has already
         // processed the live PCM stream and returns an empty final for silence.
         try {
-          if (window.SayTypeVadGate) {
+          if (window.TypeAloudVadGate) {
             const verdict = await this.waitForSessionStage(recordingSession, "resample",
-              () => window.SayTypeVadGate.analyze(audioBlob, { forceWav: useLocalWav }), AUDIO_STAGE_TIMEOUT_MS);
+              () => window.TypeAloudVadGate.analyze(audioBlob, { forceWav: useLocalWav }), AUDIO_STAGE_TIMEOUT_MS);
             if (!verdict.speech) {
               this.removePendingInsertion(sessionId);
               if (allowUi()) {
@@ -3382,7 +3382,7 @@ class VoiceInputPrompt {
         if (useLocalWav && !uploadBuffer) {
           try {
             uploadBuffer = await this.waitForSessionStage(recordingSession, "resample",
-              () => window.SayTypeVadGate.encodeFullWav(audioBlob), AUDIO_STAGE_TIMEOUT_MS);
+              () => window.TypeAloudVadGate.encodeFullWav(audioBlob), AUDIO_STAGE_TIMEOUT_MS);
             uploadMime = "audio/wav";
           } catch (wavError) {
             this.assertSessionActive(recordingSession);
@@ -3763,10 +3763,10 @@ async function initializeInputPromptPage() {
   // backend. Without a guard both run and construct two VoiceInputPrompt
   // instances, so every utterance is recorded, transcribed and inserted twice.
   // The flag lives on `window` so both script scopes share it.
-  if (window.__sayTypeInputPromptStarted) {
+  if (window.__typeAloudInputPromptStarted) {
     return;
   }
-  window.__sayTypeInputPromptStarted = true;
+  window.__typeAloudInputPromptStarted = true;
 
   try {
     const settings = await ipc.invoke("get-settings");

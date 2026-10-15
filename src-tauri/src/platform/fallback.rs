@@ -94,6 +94,9 @@ pub fn set_auto_launch(_enabled: bool) -> Result<()> {
   Ok(())
 }
 
+/// No login item exists off macOS, so there is nothing to carry over.
+pub fn migrate_legacy_login_item(_legacy_label: &str) {}
+
 /// No activation hook off macOS. Windows and Linux both keep a taskbar entry
 /// that restores the window, so there is no "frontmost with nothing on screen"
 /// state to rescue the user from.

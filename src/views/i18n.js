@@ -1305,7 +1305,7 @@
     return key ? t(`activity.retryErrors.${key}`) : reason;
   }
 
-  window.SayTypeI18n = {
+  window.TypeAloudI18n = {
     localizeRetryError,
     initI18n,
     setLanguage,

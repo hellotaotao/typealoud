@@ -179,7 +179,7 @@ export function joinChunkTexts(texts) {
 }
 
 if (typeof window !== "undefined") {
-  window.SayTypeChunk = {
+  window.TypeAloudChunk = {
     SOFT_TARGET_S,
     HARD_MAX_S,
     EARLY_TARGET_S,

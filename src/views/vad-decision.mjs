@@ -70,5 +70,5 @@ export function encodeWavPcm16(pcm, sampleRate) {
 }
 
 if (typeof window !== "undefined") {
-  window.SayTypeVad = { decideSpeech, totalSpeechMs, trimRangeMs, shouldTrim, encodeWavPcm16 };
+  window.TypeAloudVad = { decideSpeech, totalSpeechMs, trimRangeMs, shouldTrim, encodeWavPcm16 };
 }
