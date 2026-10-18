@@ -26,6 +26,7 @@ overturning a rule.
 | Upstream llama.cpp worker-reuse bug | `vendor/llama.cpp/README.md` |
 | Past feature designs (each starts with a status line) | `docs/superpowers/specs/` |
 | Parked ideas (local file, gitignored — never commit) | `TODO.md` |
+| Promotion, launch plans, post drafts, trial recruiting (local folder, untracked — never commit; the repo holds only the product) | `promo/` |
 
 ## Development Commands
 
