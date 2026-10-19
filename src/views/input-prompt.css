@@ -551,3 +551,43 @@ body.has-transcription .input-prompt.recording {
       0 6px 16px rgba(0, 0, 0, 0.28);
   }
 }
+
+/* Native Liquid Glass (macOS 26+, html.native-glass from native-glass.js): an
+   NSGlassEffectView sits behind the box and the bubble, so their own surfaces
+   thin to a theme tint over it and the CSS blur goes (it only ever blurred this
+   page, never the desktop). The glass follows each box's rect and opacity, not
+   its transform, so the box moves by fading and resizing only; the failure cue
+   keeps its amber ring without the nudge. */
+:root.native-glass {
+  --prompt-bg: linear-gradient(135deg, rgba(28, 35, 34, 0.42), rgba(17, 22, 21, 0.42));
+  --prompt-bg-recording: linear-gradient(135deg, rgba(33, 46, 43, 0.48), rgba(20, 28, 27, 0.48));
+  --prompt-transcription-bg: linear-gradient(135deg, rgba(26, 33, 32, 0.5), rgba(15, 20, 19, 0.5));
+}
+
+:root.native-glass[data-theme="elegant"] {
+  --prompt-bg: linear-gradient(135deg, rgba(248, 245, 240, 0.38), rgba(233, 241, 236, 0.38));
+  --prompt-bg-recording: linear-gradient(135deg, rgba(240, 236, 228, 0.46), rgba(224, 236, 231, 0.46));
+  --prompt-transcription-bg: linear-gradient(135deg, rgba(247, 244, 239, 0.5), rgba(232, 240, 235, 0.5));
+}
+
+.native-glass .input-prompt,
+.native-glass .transcription-text {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.native-glass .input-prompt,
+.native-glass .input-prompt.visible,
+.native-glass .input-prompt:hover {
+  transform: none;
+}
+
+.native-glass .input-prompt.visible.insert-failed {
+  animation: insertFailedGlow 2.6s ease-in-out 1s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .native-glass .input-prompt.visible.insert-failed {
+    animation: none;
+  }
+}

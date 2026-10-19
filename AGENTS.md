@@ -198,6 +198,14 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   the strongest mark. A filler inside quotation marks (quoted speech is verbatim) or one that is
   listed, named or used as a word stays; when unsure, keep it. 啊/呀/哦 are never removed. Rules and the real transcripts behind them are in its header.
 - `ax_cloud.rs` — window lifecycle for the Accessibility drag cloud.
+- `glass.rs` — macOS Liquid Glass backdrops: `NSGlassEffectView`s placed below the WKWebView,
+  showing wherever the page leaves its background transparent (`html.native-glass`, set by
+  `native-glass.js` after `get_native_glass`). `main` gets one view filling the window (sidebar
+  vibrancy before macOS 26) under an Overlay title bar; `input-prompt` gets one view per surface
+  (box and transcription bubble) that follows the rect and opacity the page reports through
+  `set_glass_regions`, so those surfaces animate by fading and resizing, never by transform.
+  Set the glass appearance on the views, never on the window: a window appearance also pins the
+  webview's `prefers-color-scheme` and breaks the "auto" theme.
 - `tray.rs`, `state.rs` — system tray and shared app state.
 - `platform/` — the platform abstraction (`mod.rs` contract + `macos.rs` / `fallback.rs`, plus the
   macOS-only `activation.rs` and `drag_cloud.rs`). It owns text insertion, permission checks,
@@ -267,7 +275,8 @@ arrays; the input-prompt CSP allows `connect-src 'self' ipc: http://ipc.localhos
 
 The frontend registers every listener with target `{ kind: "Any" }`, and **an `Any` listener
 receives targeted events too**: Tauri's `match_any_or_filter` short-circuits on `EventTarget::Any`
-before comparing labels (checked against the locked tauri 2.10.3 source on 2026-08-31). So `emit`
+before comparing labels (checked against the locked tauri source: 2.10.3 on 2026-08-31, 2.12.2
+on 2026-10-19). So `emit`
 and `emit_to` both work here. An earlier version of these instructions claimed `emit_to` was
 silently dropped; that was wrong, so don't "fix" a working `emit_to` on its authority. `emit` is
 still the natural default for events more than one window may want.

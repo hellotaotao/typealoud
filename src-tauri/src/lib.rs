@@ -2,6 +2,7 @@ mod ax_cloud;
 mod commands;
 mod dictionary;
 mod filler;
+mod glass;
 mod history;
 mod hardware;
 mod retry_error;
@@ -195,6 +196,10 @@ pub fn run() {
         }));
       }
 
+      if let Some(window) = app.get_webview_window("main") {
+        glass::install_main_backdrop(&window);
+      }
+
       if !config.start_minimized {
         if let Some(window) = app.get_webview_window("main") {
           let _ = window.show();
@@ -220,6 +225,9 @@ pub fn run() {
       commands::get_app_version,
       commands::get_build_info,
       commands::hide_input_prompt,
+      commands::get_native_glass,
+      commands::set_glass_regions,
+      commands::set_glass_appearance,
       commands::release_recording_lock,
       commands::cleanup_microphone,
       commands::cancel_transcription,

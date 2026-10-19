@@ -28,6 +28,9 @@
     "get-app-version": "get_app_version",
     "get-build-info": "get_build_info",
     "hide-input-prompt": "hide_input_prompt",
+    "get-native-glass": "get_native_glass",
+    "set-glass-regions": "set_glass_regions",
+    "set-glass-appearance": "set_glass_appearance",
     "release-recording-lock": "release_recording_lock",
     "cleanup-microphone": "cleanup_microphone",
     "cancel-transcription": "cancel_transcription",
@@ -98,6 +101,8 @@
     "finish-qwen-worker-session": [["sessionId", "session_id"]],
     "cancel-transcription": [["sessionId", "session_id"]],
     "release-recording-lock": [["lockId", "lock_id"]],
+    "set-glass-regions": [["regions"]],
+    "set-glass-appearance": [["dark"]],
     "start-live-transcription": [
       ["sessionId", "session_id"],
       ["sampleRate", "sample_rate"],

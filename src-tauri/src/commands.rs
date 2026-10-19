@@ -885,6 +885,27 @@ pub fn release_recording_lock(lock_id: u64, state: State<'_, AppState>) {
   }
 }
 
+/// Whether the calling window has a native glass backdrop (see `glass.rs`).
+#[tauri::command]
+pub fn get_native_glass(window: tauri::WebviewWindow) -> bool {
+  crate::glass::has_native_backdrop(window.label())
+}
+
+/// The prompt page's glass surfaces, reported whenever one moves, resizes or fades.
+#[tauri::command]
+pub fn set_glass_regions(
+  window: tauri::WebviewWindow,
+  regions: Vec<crate::glass::GlassRegion>,
+) -> Result<(), String> {
+  crate::glass::set_regions(&window, regions)
+}
+
+/// Matches the calling window's glass to the app theme.
+#[tauri::command]
+pub fn set_glass_appearance(window: tauri::WebviewWindow, dark: bool) -> Result<(), String> {
+  crate::glass::set_appearance(&window, dark)
+}
+
 #[tauri::command]
 pub fn hide_input_prompt(app: AppHandle) -> Result<(), String> {
   let _ = app.emit_to("input-prompt", "cleanup-microphone", ());

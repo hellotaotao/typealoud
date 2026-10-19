@@ -24,7 +24,8 @@
         "center": true,
         "resizable": true,
         "fullscreen": false,
-        "titleBarStyle": "Visible"
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       },
       {
         "label": "input-prompt",

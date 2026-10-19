@@ -3779,6 +3779,11 @@ async function initializeInputPromptPage() {
     applyTheme("elegant");
   }
   watchSystemTheme();
+  // The native glass behind the box and the bubble follows them (macOS 26+ only).
+  window.NativeGlass?.track([
+    { id: "prompt", element: document.getElementById("inputPrompt") },
+    { id: "transcription", element: document.getElementById("transcriptionText") },
+  ]);
   new VoiceInputPrompt();
 }
 

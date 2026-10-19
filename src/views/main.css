@@ -1969,3 +1969,43 @@ body {
   .ob-engine-grid { grid-template-columns: minmax(0, 1fr); }
   .ob-steps { flex-direction: column; }
 }
+
+/* Native glass (macOS, html.native-glass from native-glass.js). The window is
+   transparent with Liquid Glass behind the webview (sidebar vibrancy before
+   macOS 26), so the page clears its own background where the glass should show
+   (the sidebar) and keeps the content pane opaque. The title bar is an Overlay:
+   the sidebar runs to the top under the traffic lights, and .titlebar-drag stands
+   in for the hidden title bar as the window's drag handle. */
+.titlebar-drag {
+  display: none;
+}
+
+:root.native-glass {
+  --sidebar-bg: rgba(0, 0, 0, 0.14);
+}
+
+:root.native-glass[data-theme="elegant"] {
+  --sidebar-bg: rgba(255, 255, 255, 0.22);
+}
+
+.native-glass body {
+  background: transparent;
+}
+
+.native-glass .sidebar {
+  padding-top: 52px;
+}
+
+.native-glass .main-content {
+  background: var(--app-bg);
+}
+
+.native-glass .titlebar-drag {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  z-index: 5001;
+}
