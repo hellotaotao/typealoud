@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "TypeAloud",
-  "version": "1.19.3",
+  "version": "1.20.0",
   "identifier": "com.tao.typealoud",
   "build": {
     "frontendDist": "../src/views",

@@ -1,6 +1,6 @@
 [package]
 name = "typealoud"
-version = "1.19.3"
+version = "1.20.0"
 description = "Voice input method software"
 authors = ["Tao"]
 license = "GPL-3.0-only"

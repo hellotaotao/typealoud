@@ -1,6 +1,6 @@
 {
   "name": "typealoud",
-  "version": "1.19.3",
+  "version": "1.20.0",
   "description": "Voice input method software built with Tauri",
   "scripts": {
     "test": "node --test \"src/views/*.test.mjs\" \"scripts/*.test.mjs\"",
