@@ -302,7 +302,7 @@ pub fn app_data_dir() -> Result<PathBuf> {
 
 /// Move the pre-rename data directory (settings, history, downloaded models
 /// and runtimes) to the current identifier. Must run before anything calls
-/// `app_data_dir`, which would create an empty directory and hide the old one.
+/// `app_data_dir`, which creates the directory and starts filling it.
 /// Logging is not set up yet at that point, so failures go to stderr.
 pub fn migrate_legacy_app_data() {
   let Some(base) = data_base_dir() else { return };
@@ -313,15 +313,33 @@ pub fn migrate_legacy_app_data() {
   }
 }
 
-/// Rename `legacy` to `current` when only the legacy directory exists.
-/// Returns whether anything moved.
+/// Rename `legacy` to `current` when only the legacy directory exists, or when
+/// `current` is an empty shell. Returns whether anything moved.
 fn move_legacy_dir(legacy: &Path, current: &Path) -> Result<bool> {
-  if !legacy.is_dir() || current.exists() {
+  if !legacy.is_dir() {
     return Ok(false);
+  }
+  if current.exists() {
+    // Anything that resolves `app_data_dir` before the first launch leaves an
+    // empty directory behind (a `cargo test` run does), and that must not keep
+    // the old data where the app no longer looks. One that holds anything else
+    // already belongs to this identifier.
+    if !is_empty_data_dir(current) {
+      return Ok(false);
+    }
+    fs::remove_dir_all(current)
+      .with_context(|| format!("failed to remove empty {}", current.display()))?;
   }
   fs::rename(legacy, current)
     .with_context(|| format!("failed to move {} to {}", legacy.display(), current.display()))?;
   Ok(true)
+}
+
+/// A directory with no entries apart from Finder's `.DS_Store`.
+fn is_empty_data_dir(dir: &Path) -> bool {
+  fs::read_dir(dir)
+    .map(|entries| entries.flatten().all(|entry| entry.file_name() == ".DS_Store"))
+    .unwrap_or(false)
 }
 
 pub fn config_path() -> Result<PathBuf> {
@@ -494,6 +512,36 @@ mod tests {
     fs::create_dir_all(&legacy).unwrap();
     assert!(!move_legacy_dir(&legacy, &current).unwrap());
     assert!(legacy.is_dir());
+  }
+
+  #[test]
+  fn legacy_data_dir_replaces_an_empty_current_dir() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let legacy = temp.path().join(LEGACY_APP_IDENTIFIER);
+    let current = temp.path().join(APP_IDENTIFIER);
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(legacy.join(HISTORY_FILE_NAME), "{}").unwrap();
+    fs::create_dir_all(&current).unwrap();
+    fs::write(current.join(".DS_Store"), "").unwrap();
+
+    assert!(move_legacy_dir(&legacy, &current).unwrap());
+    assert!(!legacy.exists());
+    assert!(current.join(HISTORY_FILE_NAME).is_file());
+    assert!(!current.join(".DS_Store").exists());
+  }
+
+  #[test]
+  fn legacy_data_dir_stays_when_current_holds_anything() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let legacy = temp.path().join(LEGACY_APP_IDENTIFIER);
+    let current = temp.path().join(APP_IDENTIFIER);
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(legacy.join(HISTORY_FILE_NAME), "{}").unwrap();
+    fs::create_dir_all(current.join("local-asr")).unwrap();
+
+    assert!(!move_legacy_dir(&legacy, &current).unwrap());
+    assert!(legacy.join(HISTORY_FILE_NAME).is_file());
+    assert!(current.join("local-asr").is_dir());
   }
 
   #[test]
