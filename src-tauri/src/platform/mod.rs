@@ -38,6 +38,8 @@
 
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(any(target_os = "macos", test))]
+mod macos_insert_guard;
 #[cfg(target_os = "macos")]
 mod activation;
 #[cfg(target_os = "macos")]
