@@ -118,7 +118,7 @@
     "delete-history-item": [["id"]],
     "read-debug-audio": [["id"]],
     "retranscribe-pending": [["id"]],
-    "type-text": [["text"], ["shape"]],
+    "type-text": [["text"], ["shape"], ["skipFocusCheck", "skip_focus_check"]],
     "save-dictionary": [["text"]],
     "copy-to-clipboard": [["text"], ["shape"]],
     "save-onboarding-api-key": [["provider"], ["apiKey", "api_key"]],

@@ -28,7 +28,7 @@
 //! fn app_bundle_path() -> Option<std::path::PathBuf>;
 //! fn attach_app_drag_source(ns_view: *mut std::ffi::c_void) -> bool;
 //! fn copy_to_clipboard(text: &str) -> anyhow::Result<()>;
-//! fn insert_text(text: &str) -> InsertResult;
+//! fn insert_text(text: &str, check_focus: bool) -> InsertResult;
 //! fn focused_window_center() -> Option<(f64, f64)>;
 //! fn set_auto_launch(enabled: bool) -> anyhow::Result<()>;
 //! fn migrate_legacy_login_item(legacy_label: &str);

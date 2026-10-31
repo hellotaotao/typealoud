@@ -784,7 +784,9 @@ class VoiceInputPrompt {
   // A tap of the hotkey while a failure card was showing re-inserts that card's
   // text at the caret: the user clicks the target field, then taps. The tap
   // also started a recording, which is always discarded. Without a card it is
-  // just the old mis-trigger cancel.
+  // just the old mis-trigger cancel. The tap is the user's own choice of target
+  // and the text stays in History, so the backend's focus check is skipped: it
+  // is what blocked the insertion in apps it can't see into.
   async handleHotkeyTap() {
     const text = this.tapInsertCandidate;
     this.tapInsertCandidate = null;
@@ -806,7 +808,7 @@ class VoiceInputPrompt {
     this.isFlushingInsertQueue = true;
     let result;
     try {
-      result = await this.typeText(text, { suppressUi: true });
+      result = await this.typeText(text, { suppressUi: true, skipFocusCheck: true });
     } catch (error) {
       result = { ok: false, message: errorMessage(error) };
     } finally {
@@ -3562,7 +3564,7 @@ class VoiceInputPrompt {
   }
 
   async typeText(text, options = {}) {
-    const { suppressUi = false } = options;
+    const { suppressUi = false, skipFocusCheck = false } = options;
     if (!hasMeaningfulText(text)) {
       if (!suppressUi) {
         this.statusText.textContent = t("inputPrompt.noSpeech");
@@ -3574,7 +3576,7 @@ class VoiceInputPrompt {
 
     // Send the transcribed text to the active application.
     try {
-      const result = await ipc.invoke("type-text", text, textShape(text));
+      const result = await ipc.invoke("type-text", text, textShape(text), skipFocusCheck);
 
       // Any backend success means the text was injected directly (there is no
       // clipboard fallback). `method` differs per OS ("cgevent_unicode" on

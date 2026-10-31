@@ -60,7 +60,7 @@ pub fn copy_to_clipboard(text: &str) -> Result<()> {
   }
 }
 
-pub fn insert_text(text: &str) -> InsertResult {
+pub fn insert_text(text: &str, _check_focus: bool) -> InsertResult {
   // enigo drives SendInput (KEYEVENTF_UNICODE) on Windows and XTEST/libxdo on
   // Linux/X11 — layout-independent Unicode, so CJK/emoji go through. No special
   // permission needed. On any failure the transcription is still in History, so

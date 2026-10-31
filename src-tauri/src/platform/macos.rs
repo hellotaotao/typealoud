@@ -159,7 +159,7 @@ pub fn copy_to_clipboard(text: &str) -> Result<()> {
   Ok(())
 }
 
-pub fn insert_text(text: &str) -> InsertResult {
+pub fn insert_text(text: &str, check_focus: bool) -> InsertResult {
   if !accessibility_granted(false) {
     // Without Accessibility we can neither synthesize keystrokes nor introspect
     // focus; the text is in History, so report failure and let the prompt offer
@@ -167,7 +167,7 @@ pub fn insert_text(text: &str) -> InsertResult {
     return InsertResult::Failed;
   }
 
-  if !focused_element_accepts_text() {
+  if check_focus && !focused_element_accepts_text() {
     // Nothing editable is focused (desktop, a button, window chrome) — the
     // keystrokes would land nowhere.
     return InsertResult::NoEditableTarget;
@@ -348,8 +348,8 @@ fn classify_focus_query(err: i32, has_element: bool) -> FocusQuery {
 // Best-effort guard: returns false ONLY when we're confident there is no
 // editable text target for the keystrokes (no focused UI element, or a focused
 // element that is neither value-settable nor a known text role — e.g. the
-// desktop, a button, window chrome outside the terminal exception below).
-// On ANY focus-query uncertainty it returns true, so we
+// desktop, a button, window chrome outside the self-drawn app exception in
+// `macos_insert_guard`). On ANY focus-query uncertainty it returns true, so we
 // never block a valid insertion in an app with imperfect Accessibility data —
 // including apps whose AX tree is opaque and can't be queried at all.
 // Without this, CGEvent insertion silently "succeeds" into the void when no
@@ -410,13 +410,10 @@ fn focused_element_accepts_text() -> bool {
       role_name = Some(role);
     }
 
-    // GPU terminals may expose only AXWindow. Inspect that element's owner,
-    // not a separately queried frontmost process (which could change meanwhile).
-    let process_path = if !value_settable && role_name.as_deref() == Some("AXWindow") {
-      focused_process_path(focused)
-    } else {
-      None
-    };
+    // Apps that draw their own text may expose only AXWindow, and a block should
+    // name the app. Inspect the element's owner, not a separately queried
+    // frontmost process (which could change meanwhile).
+    let process_path = if value_settable { None } else { focused_process_path(focused) };
     CFRelease(focused);
     let accepts = macos_insert_guard::accepts_text(
       role_name.as_deref(), value_settable, process_path.as_deref(),
@@ -425,8 +422,11 @@ fn focused_element_accepts_text() -> bool {
     if accepts {
       log::info!("insert-guard: focused role={role} settable={value_settable} -> allow");
     } else {
+      let app = process_path
+        .as_deref()
+        .map_or("<unavailable>", macos_insert_guard::executable_name);
       log::warn!(
-        "insert-guard: focused role={role} settable={value_settable} -> block (no editable target)"
+        "insert-guard: focused app={app} role={role} settable={value_settable} -> block (no editable target)"
       );
     }
     accepts
@@ -434,7 +434,8 @@ fn focused_element_accepts_text() -> bool {
 }
 
 /// Resolve an AX element's owner without spawning a process or changing focus.
-/// Failed lookups do not grant the terminal exception. Paths stay out of logs.
+/// Failed lookups do not grant the self-drawn app exception. Full paths stay
+/// out of logs.
 fn focused_process_path(focused: *const c_void) -> Option<String> {
   let mut pid: i32 = 0;
   if unsafe { AXUIElementGetPid(focused, &mut pid) } != 0 || pid <= 0 {

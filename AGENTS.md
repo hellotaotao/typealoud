@@ -208,7 +208,9 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   webview's `prefers-color-scheme` and breaks the "auto" theme.
 - `tray.rs`, `state.rs` — system tray and shared app state.
 - `platform/` — the platform abstraction (`mod.rs` contract + `macos.rs` / `fallback.rs`, plus the
-  macOS-only `activation.rs` and `drag_cloud.rs`). It owns text insertion, permission checks,
+  macOS-only `activation.rs`, `drag_cloud.rs` and `macos_insert_guard.rs`, the pure policy that decides
+  whether the focused element can take text; add an app that draws its own text there only after
+  testing it on a real machine). It owns text insertion, permission checks,
   clipboard write and autostart. Non-macOS (`fallback.rs`, shared by Windows/Linux): insertion via
   `enigo`, Accessibility requires no separate grant, and autostart is a stub. Windows delegates
   explicit clipboard copy and microphone Settings to `windows.rs`; microphone status is a

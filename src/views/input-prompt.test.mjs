@@ -3536,6 +3536,19 @@ test("a hotkey tap on a failure card inserts its text and never transcribes the 
   assert.equal(h.prompt.tapInsertCandidate, null);
 });
 
+test("only the tap re-insertion asks the backend to skip the focus check", async () => {
+  const h = await createLifecycleHarness();
+  await startSecondRecording(h, "text the focus check would block");
+  h.prompt.typeText = Object.getPrototypeOf(h.prompt).typeText;
+  await h.prompt.handleHotkeyTap();
+  await settlePromises();
+  await h.prompt.typeText("ordinary dictation", { suppressUi: true });
+  assert.deepEqual(
+    h.calls.filter(([command]) => command === "type-text").map(([, text, , skip]) => [text, skip]),
+    [["text the focus check would block", true], ["ordinary dictation", false]]
+  );
+});
+
 test("a tap whose insertion fails again brings the same card back", async () => {
   const h = await createLifecycleHarness();
   await startSecondRecording(h, "still no field");

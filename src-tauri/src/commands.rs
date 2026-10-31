@@ -1381,6 +1381,9 @@ pub async fn type_text(
   _state: State<'_, AppState>,
   text: String,
   shape: Option<String>,
+  // The user picked the target themselves (the failure card's tap re-insert),
+  // so the platform's guess about the focused element must not overrule them.
+  skip_focus_check: Option<bool>,
 ) -> Result<TypeTextResponse, String> {
   // The shape comparison exists to pin IPC-leg text corruption — only an
   // actual mismatch deserves warn (and thus the shipped log file, which
@@ -1412,7 +1415,8 @@ pub async fn type_text(
   // Err: that is the same graceful path as any failed insert, and the
   // transcription is already in History either way.
   let inserted_chars = text.chars().count();
-  let outcome = match tokio::task::spawn_blocking(move || platform::insert_text(&text)).await {
+  let check_focus = !skip_focus_check.unwrap_or(false);
+  let outcome = match tokio::task::spawn_blocking(move || platform::insert_text(&text, check_focus)).await {
     Ok(result) => result,
     Err(join_error) => {
       log::error!("text insertion task failed to run: {join_error}");
