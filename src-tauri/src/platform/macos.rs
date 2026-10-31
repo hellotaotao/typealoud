@@ -6,7 +6,7 @@
 //! item. This code was moved verbatim out of `commands.rs` / `settings.rs`
 //! during the platform-abstraction refactor — behavior is unchanged.
 
-use super::InsertResult;
+use super::{macos_insert_guard, InsertResult};
 use crate::settings::APP_IDENTIFIER;
 use anyhow::{anyhow, Context, Result};
 use core_foundation::base::TCFType;
@@ -348,7 +348,8 @@ fn classify_focus_query(err: i32, has_element: bool) -> FocusQuery {
 // Best-effort guard: returns false ONLY when we're confident there is no
 // editable text target for the keystrokes (no focused UI element, or a focused
 // element that is neither value-settable nor a known text role — e.g. the
-// desktop, a button, window chrome). On ANY uncertainty it returns true, so we
+// desktop, a button, window chrome outside the terminal exception below).
+// On ANY focus-query uncertainty it returns true, so we
 // never block a valid insertion in an app with imperfect Accessibility data —
 // including apps whose AX tree is opaque and can't be queried at all.
 // Without this, CGEvent insertion silently "succeeds" into the void when no
@@ -396,7 +397,6 @@ fn focused_element_accepts_text() -> bool {
 
     // Signal 2: a known text-bearing role (e.g. Terminal's AXTextArea, whose
     // value isn't "settable" in the AX sense but still accepts keystrokes).
-    let mut text_role = false;
     let mut role_name: Option<String> = None;
     let role_attr = CFString::new("AXRole");
     let mut role_ref: *const c_void = std::ptr::null();
@@ -407,15 +407,20 @@ fn focused_element_accepts_text() -> bool {
     );
     if role_err == 0 && !role_ref.is_null() {
       let role = CFString::wrap_under_create_rule(role_ref as CFStringRef).to_string();
-      text_role = matches!(
-        role.as_str(),
-        "AXTextField" | "AXTextArea" | "AXComboBox" | "AXSearchField"
-      );
       role_name = Some(role);
     }
 
+    // GPU terminals may expose only AXWindow. Inspect that element's owner,
+    // not a separately queried frontmost process (which could change meanwhile).
+    let process_path = if !value_settable && role_name.as_deref() == Some("AXWindow") {
+      focused_process_path(focused)
+    } else {
+      None
+    };
     CFRelease(focused);
-    let accepts = value_settable || text_role;
+    let accepts = macos_insert_guard::accepts_text(
+      role_name.as_deref(), value_settable, process_path.as_deref(),
+    );
     let role = role_name.as_deref().unwrap_or("<unavailable>");
     if accepts {
       log::info!("insert-guard: focused role={role} settable={value_settable} -> allow");
@@ -426,6 +431,22 @@ fn focused_element_accepts_text() -> bool {
     }
     accepts
   }
+}
+
+/// Resolve an AX element's owner without spawning a process or changing focus.
+/// Failed lookups do not grant the terminal exception. Paths stay out of logs.
+fn focused_process_path(focused: *const c_void) -> Option<String> {
+  let mut pid: i32 = 0;
+  if unsafe { AXUIElementGetPid(focused, &mut pid) } != 0 || pid <= 0 {
+    return None;
+  }
+  let mut buffer = [0u8; 4096]; // PROC_PIDPATHINFO_MAXSIZE
+  let len = unsafe { proc_pidpath(pid, buffer.as_mut_ptr().cast(), buffer.len() as u32) };
+  if len <= 0 || len as usize >= buffer.len() {
+    return None;
+  }
+  // Bounded parsing: never index at the returned length or scan beyond buffer.
+  std::ffi::CStr::from_bytes_until_nul(&buffer).ok()?.to_str().ok().map(str::to_owned)
 }
 
 #[repr(C)]
@@ -560,6 +581,7 @@ extern "C" {
   fn AXUIElementCreateSystemWide() -> *const c_void;
   fn AXUIElementCopyAttributeValue(element: *const c_void, attribute: *const c_void, value: *mut *const c_void) -> i32;
   fn AXUIElementIsAttributeSettable(element: *const c_void, attribute: *const c_void, settable: *mut u8) -> i32;
+  fn AXUIElementGetPid(element: *const c_void, pid: *mut i32) -> i32;
   fn AXUIElementSetMessagingTimeout(element: *const c_void, timeoutInSeconds: f32) -> i32;
   fn AXValueGetValue(value: *const c_void, theType: u32, valuePtr: *mut c_void) -> bool;
 }
@@ -570,6 +592,12 @@ extern "C" {}
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
   fn CFRelease(cf: *const c_void);
+}
+
+// libproc is available on both macOS architectures; no other platform links it.
+#[link(name = "proc")]
+extern "C" {
+  fn proc_pidpath(pid: i32, buffer: *mut c_void, buffer_size: u32) -> i32;
 }
 
 #[cfg(test)]
