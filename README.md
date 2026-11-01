@@ -11,7 +11,7 @@ Free, open-source dictation for Mac and Windows. Hold a key, speak, and the text
 - **Hold-to-Record Hotkey**: Hold down Ctrl+Shift to start recording, release to stop and transcribe. Double-tap Ctrl+Shift to record hands-free; press it once more to finish
 - **Real-time Audio Visualization**: Waveform animation while recording
 - **Local-first AI Transcription**: Qwen3-ASR runs on-device for batch quality (0.6B by default, 1.7B as a larger option); Nemotron 3.5 adds live local transcription on Apple Silicon and Windows x64. Groq and OpenAI remain optional cloud choices
-- **Auto-typing**: Inserts transcribed text into the active application (macOS; Windows/Linux experimental, untested)
+- **Auto-typing**: Inserts transcribed text into the active application (macOS and Windows; Linux experimental, untested)
 - **Background Operation**: Runs silently in the system tray
 - **Automatic Updates**: New releases download in the background; restart from the tray or Settings when you're ready
 - **Customizable Settings**: Configure the engine, API keys, and language
@@ -65,7 +65,7 @@ Releases are built, signed, and published automatically when a `v*` tag is pushe
 3. Hold down Ctrl+Shift to start recording
 4. Speak while holding the keys
 5. Release to stop recording and transcribe
-6. Text is inserted into the active application (macOS; Windows/Linux experimental, untested)
+6. Text is inserted into the active application (macOS and Windows; Linux experimental, untested)
 7. Press Escape to cancel recording or an in-progress transcription
 
 ## Configuration

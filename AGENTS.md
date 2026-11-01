@@ -286,10 +286,12 @@ still the natural default for events more than one window may want.
 ## Platform-Specific Considerations
 
 - **macOS** requires Microphone and Accessibility permissions; entitlements are at
-  `build/entitlements.mac.plist` (referenced by `tauri.conf.json`). It is the only platform verified
-  on real machines.
-- **Windows/Linux**: insertion (`enigo`) and the hotkey (`rdev`) are implemented but not verified end
-  to end; CI builds their installers. Linux recording is blocked on WebKitGTK `getUserMedia`.
+  `build/entitlements.mac.plist` (referenced by `tauri.conf.json`). It is the main platform and gets
+  the most real-machine testing.
+- **Windows**: hotkey (`rdev`), capture and insertion (`enigo`) work end to end, checked by hand on one
+  old, slow Windows machine (reported 2026-11-02); expect slow local transcription on weak CPUs.
+- **Linux**: insertion and the hotkey are implemented but not verified end to end; CI builds its
+  installers. Recording is blocked on WebKitGTK `getUserMedia`.
 - **macOS-only native APIs must be `#[cfg(target_os = "macos")]`-gated**, or the Windows/Linux CI and
   release legs fail to compile. Release builds are universal, so macOS-gated code must also cover
   `x86_64`; `cargo check --target x86_64-apple-darwin` reproduces that leg locally.
