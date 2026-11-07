@@ -255,7 +255,7 @@ direct install on the same machine don't share settings, History or downloaded m
 
 **Submission notes.** `runFullTrust` is a restricted capability and Partner Center asks why it is
 needed: the global hold-to-record hotkey and typing into the focused app. Keep it to two or three
-sentences. The listing needs a privacy policy URL (`PRIVACY.md` on the website) and should say that
+sentences. The listing needs a privacy policy URL (https://typealoud.app/privacy, which renders this repository's `PRIVACY.md` and is synced from it daily) and should say that
 the first run downloads the speech model and its inference runtime.
 
 **Testing a package locally** (Windows, Developer Mode on): `node scripts/build-msix.mjs
@@ -484,7 +484,7 @@ GitHub 匿名 API 限额(每小时 60 次)按访客 IP 计算,下载按钮碰不
 商店版和直接下载版不共享设置、History 和已下载的模型。
 
 **提交时注意。** `runFullTrust` 是受限能力,Partner Center 会问用途:全局按住录音的热键,以及向当前应用输入文字。
-写两三句即可。商店页面需要隐私政策链接(官网上的 `PRIVACY.md`),并写明首次使用会下载语音模型和推理运行时。
+写两三句即可。商店页面需要隐私政策链接(https://typealoud.app/privacy，显示的就是本仓库的 `PRIVACY.md`，每天自动同步),并写明首次使用会下载语音模型和推理运行时。
 
 **本地测试**(Windows,打开开发者模式):`node scripts/build-msix.mjs --layout-only`,然后
 `Add-AppxPackage -Register src-tauri\target\msix\layout\AppxManifest.xml`。
