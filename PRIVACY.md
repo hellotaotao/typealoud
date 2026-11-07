@@ -115,7 +115,26 @@ TypeAloud 没有账号，也不需要注册。
 
 ### 发送什么
 
-App 运行过的每一天对应一条，第二天发出。字段和上面英文部分的示例 JSON 完全一样：
+App 运行过的每一天对应一条，第二天发出：
+
+```json
+{
+  "event": "daily_usage",
+  "distinct_id": "3f2b8c1e-5a7d-4e9b-9c3a-1d2e4f6a8b0c",
+  "timestamp": "2026-09-29T12:00:00+09:30",
+  "properties": {
+    "date": "2026-09-29",
+    "dictations": 37,
+    "failures": 1,
+    "inserted_chars": 2860,
+    "engine": "local/qwen3-asr-0.6b-q8_0",
+    "app_version": "1.19.0",
+    "os": "macos",
+    "os_version": "15.6",
+    "arch": "aarch64"
+  }
+}
+```
 
 - `distinct_id` 是在这台电脑上随机生成的 ID，不来自硬件、账号、姓名或任何其他信息，除了这些统计行之外不和任何东西关联。
 - `dictations`、`failures` 是完成和失败的录音次数，`inserted_chars` 只是一个字数。
