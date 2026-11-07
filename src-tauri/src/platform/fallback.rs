@@ -5,8 +5,8 @@
 //!   works with CJK/emoji.
 //! * Accessibility requires no separate grant. Windows microphone observations
 //!   are tracked by the command layer; Linux keeps its existing permission stub.
-//! * Windows clipboard and microphone Settings use native APIs; Linux clipboard
-//!   and autostart remain unwired.
+//! * Windows clipboard, microphone Settings and autostart use native APIs
+//!   (`windows.rs`); Linux clipboard and autostart remain unwired.
 //!
 //! Shared by Windows and Linux while their behavior is identical; splits into
 //! `windows` / `linux` when Linux needs Wayland-specific handling.
@@ -90,8 +90,14 @@ pub fn focused_window_center() -> Option<(f64, f64)> {
   None
 }
 
-pub fn set_auto_launch(_enabled: bool) -> Result<()> {
-  Ok(())
+pub fn set_auto_launch(enabled: bool) -> Result<()> {
+  #[cfg(windows)]
+  return super::windows::set_auto_launch(enabled);
+  #[cfg(not(windows))]
+  {
+    let _ = enabled;
+    Ok(())
+  }
 }
 
 /// No login item exists off macOS, so there is nothing to carry over.

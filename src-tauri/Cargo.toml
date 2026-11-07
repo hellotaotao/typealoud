@@ -59,7 +59,13 @@ enigo = "0.3.0"
 
 [target.'cfg(windows)'.dependencies]
 arboard = { version = "3.6.1", default-features = false }
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Storage_Packaging_Appx", "Win32_System_Registry", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+# WinRT StartupTask for "Start with system" in the Store package. Same version
+# webview2-com already pulls in.
+windows = { version = "0.62.2", features = ["ApplicationModel"] }
+# Only for webview_version(): the WebView2 runtime check before any window
+# opens. Same version and feature tauri-runtime-wry already uses.
+wry = { version = "0.57", default-features = false, features = ["os-webview"] }
 zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
 
 [target.'cfg(unix)'.dependencies]

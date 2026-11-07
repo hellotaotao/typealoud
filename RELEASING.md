@@ -261,9 +261,22 @@ the first run downloads the speech model and its inference runtime.
 **Testing a package locally** (Windows, Developer Mode on): `node scripts/build-msix.mjs
 --layout-only`, then `Add-AppxPackage -Register src-tauri\target\msix\layout\AppxManifest.xml`.
 
-**Not done yet:** launch at login (a packaged app needs a `StartupTask` in the manifest; Windows
-autostart is a stub in every build today), unplated taskbar icons (`resources.pri`), and a check for
-a missing WebView2 runtime on Windows 10, which an MSIX can't install.
+**Packaging details the Store build depends on.**
+- *Start with system* uses the manifest's `StartupTask` (id `TypeAloudStartup`, off until the user
+  turns it on). The app finds it through WinRT and logs `autostart:startup-task state=…` at launch,
+  which `msix.yml` checks. If the user turned TypeAloud off under Settings → Apps → Startup, only
+  Windows can turn it back on, and the setting fails to save. The direct install writes the per-user
+  `Run` key instead (value `TypeAloud`, which the NSIS uninstaller removes).
+- *Taskbar icon*: `build/msix/Assets` holds the 44×44 logo at the target sizes as unplated images.
+  `scripts/build-msix.mjs` copies them (also as the light-theme variant) and runs `makepri` to
+  write `resources.pri`, failing if the index lacks them. Without it Windows draws the icon on a
+  coloured plate.
+- *WebView2*: an MSIX can't install the runtime, and some Windows 10 machines lack it. Every Windows
+  build checks for it before opening a window; when it's missing, a system dialog says so and offers
+  Microsoft's download.
+
+**Not checked yet:** these three on a real machine (the CI runner has WebView2, never signs in again
+and has no visible taskbar), and the actual Partner Center submission.
 
 ---
 
@@ -476,5 +489,16 @@ GitHub 匿名 API 限额(每小时 60 次)按访客 IP 计算,下载按钮碰不
 **本地测试**(Windows,打开开发者模式):`node scripts/build-msix.mjs --layout-only`,然后
 `Add-AppxPackage -Register src-tauri\target\msix\layout\AppxManifest.xml`。
 
-**还没做:** 开机自启(打包应用要在清单里声明 `StartupTask`;目前所有 Windows 版本的自启都还是空实现)、任务栏
-无底板图标(`resources.pri`)、以及 Windows 10 缺 WebView2 运行时的检测(MSIX 没法替用户安装)。
+**商店版依赖的几处打包细节。**
+- *开机自启* 用清单里的 `StartupTask`(id 为 `TypeAloudStartup`,默认关闭,用户打开才生效)。应用通过 WinRT
+  找到它,启动时记一行 `autostart:startup-task state=…`,`msix.yml` 会检查这一行。如果用户在「设置 → 应用 →
+  启动」里关掉了 TypeAloud,只有在 Windows 里才能重新打开,这时保存设置会失败。直接下载版改写当前用户的 `Run`
+  注册表项(值名 `TypeAloud`,NSIS 卸载时会删掉)。
+- *任务栏图标*:`build/msix/Assets` 放着 44×44 图标在各目标尺寸下的无底板版本。`scripts/build-msix.mjs`
+  把它们复制进包(同时复制一份作浅色主题版),再用 `makepri` 生成 `resources.pri`,索引里缺了它们就直接报错。
+  没有这个文件,Windows 会把图标画在一块彩色底板上。
+- *WebView2*:MSIX 没法替用户装运行时,有些 Windows 10 机器上没有。所有 Windows 版本都在开窗口之前检查;缺了就弹系统
+  对话框说明,并提供微软的下载链接。
+
+**还没验证:** 以上三项的真机效果(CI runner 自带 WebView2,不会重新登录,也没有可见的任务栏),以及在 Partner
+Center 的实际提交。

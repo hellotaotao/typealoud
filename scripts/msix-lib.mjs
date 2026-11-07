@@ -9,6 +9,26 @@ export const PLACEHOLDER_IDENTITY = {
   publisherDisplayName: "TypeAloud Dev",
 };
 
+// The manifest's StartupTask id. platform/windows.rs looks the task up by the
+// same string (STARTUP_TASK_ID there); msix-lib.test.mjs keeps them equal.
+export const STARTUP_TASK_ID = "TypeAloudStartup";
+
+// Taskbar and Start icon sizes. Windows draws the Square44x44 logo on a
+// coloured plate unless resources.pri offers an "unplated" image at the size it
+// wants; build/msix/Assets holds one per size, and each is also published as the
+// light-theme variant.
+export const TASKBAR_ICON_SIZES = [16, 24, 32, 48, 256];
+
+export function taskbarIconFiles() {
+  return TASKBAR_ICON_SIZES.map((size) => {
+    const base = `Square44x44Logo.targetsize-${size}`;
+    return {
+      source: `${base}_altform-unplated.png`,
+      targets: [`${base}_altform-unplated.png`, `${base}_altform-lightunplated.png`],
+    };
+  });
+}
+
 // MSIX versions have four parts, and the Store reserves the last one: it must
 // be 0 in a submitted package.
 export function msixVersion(semver) {
@@ -50,6 +70,7 @@ export function renderManifest(template, values) {
     DISPLAY_NAME: values.displayName,
     DESCRIPTION: values.description,
     EXECUTABLE: values.executable,
+    STARTUP_TASK_ID,
   };
   return template.replace(/\{\{([A-Z_]+)\}\}/g, (whole, key) => {
     if (!(key in fields)) throw new Error(`Unknown manifest placeholder: ${whole}`);

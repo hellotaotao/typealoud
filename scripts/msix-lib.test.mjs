@@ -4,9 +4,11 @@ import test from "node:test";
 
 import {
   PLACEHOLDER_IDENTITY,
+  STARTUP_TASK_ID,
   msixVersion,
   packageFileName,
   renderManifest,
+  taskbarIconFiles,
   validateIdentity,
 } from "./msix-lib.mjs";
 
@@ -78,4 +80,31 @@ test("a malformed identity is refused before packing", () => {
 
 test("the package file is named after the product and Store version", () => {
   assert.equal(packageFileName("TypeAloud", "1.19.3"), "TypeAloud_1.19.3.0_x64.msix");
+});
+
+test("the startup task the manifest declares is the one the app looks up", () => {
+  const manifest = render();
+  assert.match(
+    manifest,
+    new RegExp(`<desktop:StartupTask TaskId="${STARTUP_TASK_ID}" Enabled="false"`),
+  );
+  const windowsRs = fs.readFileSync(
+    new URL("../src-tauri/src/platform/windows.rs", import.meta.url),
+    "utf8",
+  );
+  assert.match(windowsRs, new RegExp(`const STARTUP_TASK_ID: &str = "${STARTUP_TASK_ID}";`));
+});
+
+test("every unplated taskbar icon exists at the size its name promises", () => {
+  for (const { source, targets } of taskbarIconFiles()) {
+    const file = new URL(`../build/msix/Assets/${source}`, import.meta.url);
+    assert.ok(fs.existsSync(file), `missing icon: ${source}`);
+    const png = fs.readFileSync(file);
+    const size = Number(/targetsize-(\d+)_/.exec(source)[1]);
+    // PNG IHDR: width and height are the big-endian words at bytes 16 and 20.
+    assert.equal(png.readUInt32BE(16), size, `${source} width`);
+    assert.equal(png.readUInt32BE(20), size, `${source} height`);
+    assert.ok(targets.some((name) => name.endsWith("_altform-unplated.png")));
+    assert.ok(targets.some((name) => name.endsWith("_altform-lightunplated.png")));
+  }
 });

@@ -4,8 +4,9 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap rescap">
+  IgnorableNamespaces="uap desktop rescap">
   <Identity
     Name="{{IDENTITY_NAME}}"
     Publisher="{{PUBLISHER}}"
@@ -31,6 +32,13 @@
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- "Start with system" for the packaged app (platform/windows.rs). Off until
+             the user turns it on; Task Manager's Startup apps list shows it too. -->
+        <desktop:Extension Category="windows.startupTask" Executable="{{EXECUTABLE}}" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="{{STARTUP_TASK_ID}}" Enabled="false" DisplayName="{{DISPLAY_NAME}}" />
+        </desktop:Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>

@@ -53,9 +53,12 @@ jobs:
         run: node scripts/build-msix.mjs
 
       # Registers the unpacked layout the way a developer machine would. It
-      # proves Windows accepts the manifest and that the running app sees its
-      # package identity (the "updater:store-managed" log line), which is what
-      # turns the self-updater off.
+      # proves Windows accepts the manifest (StartupTask and resources.pri
+      # included), that the running app sees its package identity (the
+      # "updater:store-managed" log line), which is what turns the self-updater
+      # off, and that it finds the manifest's startup task ("autostart:startup-task
+      # state=disabled", the state a fresh install starts in). Reaching those
+      # lines also means the WebView2 check at startup let the app through.
       - name: Register and launch the package
         shell: pwsh
         run: |
@@ -67,18 +70,24 @@ jobs:
           $package | Format-List Name, Version, PackageFamilyName, InstallLocation
           Start-Process "shell:AppsFolder\$($package.PackageFamilyName)!TypeAloud"
           $packageData = Join-Path $env:LOCALAPPDATA "Packages\$($package.PackageFamilyName)"
-          $found = $false
+          if (-not (Test-Path (Join-Path $package.InstallLocation "resources.pri"))) {
+            throw "The package has no resources.pri."
+          }
+          $expected = @("updater:store-managed", "autostart:startup-task state=disabled")
+          $missing = $expected
           foreach ($attempt in 1..30) {
             Start-Sleep -Seconds 2
             $logs = Get-ChildItem $packageData -Recurse -Filter *.log -ErrorAction SilentlyContinue
-            if ($logs | Select-String -Pattern "updater:store-managed" -Quiet) { $found = $true; break }
+            $missing = @($expected | Where-Object { -not ($logs | Select-String -SimpleMatch -Pattern $_ -Quiet) })
+            if ($missing.Count -eq 0) { break }
           }
           Get-Process TypeAloud -ErrorAction SilentlyContinue | Stop-Process -Force
-          if (-not $found) {
+          if ($missing.Count -gt 0) {
             Get-ChildItem $packageData -Recurse -ErrorAction SilentlyContinue | Select-Object -First 50 FullName
-            throw "The packaged app never logged updater:store-managed."
+            $logs | Get-Content -Tail 40 -ErrorAction SilentlyContinue
+            throw "The packaged app never logged: $($missing -join ', ')"
           }
-          Write-Host "The packaged app detected its package identity."
+          Write-Host "The packaged app detected its package identity and its startup task."
 
       - name: Upload the package
         uses: actions/upload-artifact@v4

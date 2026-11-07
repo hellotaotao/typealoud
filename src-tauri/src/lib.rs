@@ -38,6 +38,11 @@ const LAUNCH_ACTIVATION_GRACE: std::time::Duration = std::time::Duration::from_s
 pub fn run() {
   // Before anything resolves the data directory under the current identifier.
   settings::migrate_legacy_app_data();
+  // Without WebView2 no window can open and the app would exit silently.
+  #[cfg(windows)]
+  if !platform::ensure_webview2_runtime() {
+    return;
+  }
   tauri::Builder::default()
     // single-instance MUST be the first plugin. A second launch hands off to
     // the already-running instance (which surfaces its window) and then exits,
@@ -146,6 +151,8 @@ pub fn run() {
       };
       app.handle().plugin(log_plugin)?;
       hardware::local_tier();
+      #[cfg(windows)]
+      platform::log_startup_task_state();
 
       if let Err(error) = local_asr::cleanup_legacy_assets() {
         log::warn!("local-asr: legacy asset cleanup failed: {error:#}");

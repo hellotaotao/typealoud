@@ -212,8 +212,10 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   whether the focused element can take text; add an app that draws its own text there only after
   testing it on a real machine). It owns text insertion, permission checks,
   clipboard write and autostart. Non-macOS (`fallback.rs`, shared by Windows/Linux): insertion via
-  `enigo`, Accessibility requires no separate grant, and autostart is a stub. Windows delegates
-  explicit clipboard copy and microphone Settings to `windows.rs`; microphone status is a
+  `enigo`, Accessibility requires no separate grant, and Linux autostart is a stub. Windows delegates
+  explicit clipboard copy, microphone Settings and autostart (the Store package's `StartupTask`,
+  otherwise the per-user `Run` key) to `windows.rs`, which also checks for the WebView2 runtime
+  before any window opens; microphone status is a
   process-local capture observation (`microphone.rs`), initially unknown. Linux microphone status
   and clipboard remain stubs. Other
   platform-specific code keeps its own `#[cfg]` gates beside the feature: the hotkey event sources
