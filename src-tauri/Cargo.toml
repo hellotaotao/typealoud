@@ -41,6 +41,9 @@ uuid = { version = "1", features = ["v4"] }
 sha2 = "0.10"
 # CPU and memory share the system feature; omit disks, networks, users and Rayon.
 sysinfo = { version = "0.33.1", default-features = false, features = ["system"] }
+symphonia = { version = "0.5", default-features = false, features = ["all"] }
+rubato = "0.16"
+tauri-plugin-dialog = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10"

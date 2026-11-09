@@ -83,6 +83,12 @@
     "get-update-status": "get_update_status",
     "install-update-and-restart": "install_update_and_restart",
     "open-release-page": "open_release_page",
+    "transcribe-files": "transcribe_files",
+    "pick-transcription-files": "pick_transcription_files",
+    "get-file-transcripts": "get_file_transcripts",
+    "cancel-file-transcript": "cancel_file_transcript",
+    "delete-file-transcript": "delete_file_transcript",
+    "export-file-transcript": "export_file_transcript",
   };
 
   const tauriArgs = {
@@ -131,6 +137,10 @@
     "download-local-model": [["model"], ["switchWhenReady", "switch_when_ready"]],
     "get-local-model-status": [["model"]],
     "delete-local-model": [["model"]],
+    "transcribe-files": [["paths"]],
+    "cancel-file-transcript": [["id"]],
+    "delete-file-transcript": [["id"]],
+    "export-file-transcript": [["id"], ["format"]],
   };
 
   // Channels whose first arg is binary and is sent as the RAW IPC body (Tauri's

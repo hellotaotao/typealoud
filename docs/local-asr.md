@@ -317,6 +317,14 @@ pre-1.12 manual `bin/b9960-vulkan` extraction (unstamped) is reinstalled rather 
   `terms.rs` corrects the final text against those words and a built-in list when a heard form is
   nearly the term, and the automatic replacements apply as well.
 - The CPU paths on Windows and Linux are not verified end to end on real machines.
+- Qwen settles on one language per decode. Measured 2026-11-10 on 0.6B with synthesized speech (three
+  runs each): Chinese followed by English with 0.3 s between them transcribed fully; Chinese, a 2 s
+  pause, then more Chinese transcribed fully; but Chinese, a 2 s pause, then English lost the
+  English in 7 of 8 decodes, and English, a 2 s pause, then Chinese came back with the English
+  translated into Chinese. Dictation rarely meets this (one hold is one thought), but file
+  transcription does, so `file_transcription.rs` ends a segment at every pause of 1 s or more.
+  The same file then took 16 segments instead of 8 and lost nothing; 6 minutes of real dictation
+  took 23 s in a release build on an M4 (decode of the M4A: 72 ms).
 
 ## Open measurements
 

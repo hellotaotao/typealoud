@@ -905,6 +905,15 @@ static RESIDENT_GENERATION: AtomicU64 = AtomicU64::new(0);
 static RESIDENT_EPOCH: AtomicU64 = AtomicU64::new(0);
 static FINISHED_RESIDENT_SESSIONS: OnceLock<Mutex<HashSet<u64>>> = OnceLock::new();
 const FINISHED_SESSION_TOMBSTONES: usize = 1024;
+/// Worker lease ids for file transcription start here, far above the
+/// recording-session ids the input prompt counts up from 1, so the two never
+/// share a worker.
+pub const FILE_SESSION_BASE: u64 = 1 << 62;
+static NEXT_FILE_SESSION: AtomicU64 = AtomicU64::new(FILE_SESSION_BASE);
+
+pub fn next_file_session_id() -> u64 {
+  NEXT_FILE_SESSION.fetch_add(1, Ordering::Relaxed)
+}
 static BUNDLED_RUNTIME_INSTALL: Mutex<()> = Mutex::new(());
 #[cfg(test)]
 static RESIDENT_STARTS: AtomicU64 = AtomicU64::new(0);
@@ -1216,8 +1225,11 @@ pub fn finish_resident_session(session_id: u64) -> bool {
     let mut finished = finished_resident_sessions().lock().unwrap();
     finished.insert(session_id);
     if finished.len() > FINISHED_SESSION_TOMBSTONES * 2 {
+      // Dictation ids and file-transcription ids count up separately, so prune
+      // each range against its own newest id.
+      let file_range = session_id >= FILE_SESSION_BASE;
       let floor = session_id.saturating_sub(FINISHED_SESSION_TOMBSTONES as u64);
-      finished.retain(|id| *id >= floor);
+      finished.retain(|id| (*id >= FILE_SESSION_BASE) != file_range || *id >= floor);
     }
   }
   if slot

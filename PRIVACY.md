@@ -19,7 +19,7 @@ TypeAloud has no account and no sign-up.
 | --- | --- | --- |
 | At startup and every 24 hours | GitHub (`github.com`) or the TypeAloud website (`typealoud.app`) | A request for the latest version manifest. No data about you or your use. |
 | When you download a local model | Hugging Face, ModelScope, GitHub or the TypeAloud website (`typealoud.app`) | Ordinary file downloads. |
-| Only if you choose a cloud engine | OpenAI or Groq, directly with your own key | The recorded audio of each dictation, and the dictionary's words (for an automatic replacement, only the corrected spelling). TypeAloud's servers are not involved. |
+| Only if you choose a cloud engine | OpenAI or Groq, directly with your own key | The recorded audio of each dictation, the audio of any file you transcribe on the Files page (in segments of up to 40 seconds), and the dictionary's words (for an automatic replacement, only the corrected spelling). TypeAloud's servers are not involved. |
 | Once a day, unless turned off | PostHog, EU region (Frankfurt) | Anonymous usage statistics, described below. |
 
 ## Anonymous usage statistics
@@ -106,7 +106,7 @@ TypeAloud 没有账号，也不需要注册。
 | --- | --- | --- |
 | 启动时，之后每 24 小时 | GitHub（`github.com`）或 TypeAloud 官网（`typealoud.app`） | 请求最新版本清单，不含任何关于你或你使用情况的数据 |
 | 下载本地模型时 | Hugging Face、ModelScope、GitHub 或 TypeAloud 官网（`typealoud.app`） | 普通的文件下载 |
-| 仅当你选择云端引擎 | OpenAI 或 Groq，用你自己的 key 直连 | 每次听写的录音和词典，不经过 TypeAloud 的服务器 |
+| 仅当你选择云端引擎 | OpenAI 或 Groq，用你自己的 key 直连 | 每次听写的录音、在「转写文件」页转写的文件音频（按最长 40 秒分段发送），以及词典，不经过 TypeAloud 的服务器 |
 | 每天一次（可关闭） | PostHog 欧盟节点（法兰克福） | 匿名使用统计，见下文 |
 
 ## 匿名使用统计

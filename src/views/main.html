@@ -156,6 +156,10 @@
         <span class="nav-item-icon material-icons">home</span>
         <span data-i18n="sidebar.home">Home</span>
       </button>
+      <button class="nav-item" data-page="files" onclick="showPage('files')">
+        <span class="nav-item-icon material-icons">audio_file</span>
+        <span data-i18n="sidebar.files">Files</span>
+      </button>
       <button class="nav-item" data-page="dictionary" onclick="showPage('dictionary')">
         <span class="nav-item-icon material-icons">book</span>
         <span data-i18n="sidebar.dictionary">Dictionary</span>
@@ -201,6 +205,28 @@
           <button class="link-btn" id="viewAllBtn" onclick="showPage('history')" data-i18n="home.viewAll">View all</button>
         </div>
         <div id="activity-container"></div>
+      </div>
+    </div>
+
+    <!-- Files Page -->
+    <div id="files-page" class="page">
+      <div class="welcome">
+        <h1 data-i18n="files.title">Transcribe files</h1>
+        <p data-i18n="files.subtitle">Turn recordings and videos into text you can copy, or into subtitles.</p>
+      </div>
+
+      <div class="files-drop" id="filesDrop">
+        <span class="material-icons files-drop-icon" aria-hidden="true">upload_file</span>
+        <p class="files-drop-title" id="filesDropTitle" data-i18n="files.dropTitle">Drop audio or video files here</p>
+        <p class="files-drop-hint" data-i18n="files.dropHint">MP3, M4A, WAV, FLAC, MP4, MOV and more, up to 4 hours each.</p>
+        <button class="btn" type="button" id="filesPickBtn" data-i18n="files.pick">Choose files…</button>
+      </div>
+      <p class="files-engine-note" id="filesEngineNote"></p>
+      <p class="files-status" id="filesStatus" role="alert" hidden></p>
+
+      <div class="files-layout">
+        <div class="files-list" id="filesList" role="listbox" aria-label="Transcribed files" data-i18n="files.listLabel" data-i18n-attr="aria-label"></div>
+        <section class="files-detail" id="filesDetail" aria-live="polite"></section>
       </div>
     </div>
 
@@ -830,5 +856,6 @@
   <script src="microphone-access.js"></script>
   <script src="main.js"></script>
   <script src="settings.js"></script>
+  <script src="files.js"></script>
 </body>
 </html>

@@ -168,6 +168,18 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 - `history.rs` — the History store (`{ "activities": [...] }`, 200-entry `HISTORY_CAP`, atomic
   writes), including pending audio.
 - `retry_error.rs` — typed registry of the persisted `RETRY_*` codes.
+- `file_transcription.rs` — the Files page: decodes a dropped or picked audio/video file
+  (Symphonia, resampled to 16 kHz mono with rubato), cuts it into segments and sends each one to the
+  engine in use when the file was added (`FileEngine` in `commands.rs`). **Invariants:**
+  - Segments end at every pause of 1 s or more and never run past 40 s. Qwen keeps one language per
+    decode: Chinese, a 2 s pause, then English came back with the English dropped or translated
+    (measured 2026-11-10), so don't merge across long pauses to save decodes.
+  - Each segment is one decode and takes the single local inference slot on its own, so a dictation
+    waits for one segment at most. File jobs lease workers from `FILE_SESSION_BASE` up, never
+    sharing an id with a recording session.
+  - Results live in `file-transcripts.json` (100 entries), not History. Only the file name is stored,
+    never its path, and the audio is not kept. Each segment gets `prepare_final_transcription`, since
+    segments are the output units (paragraphs, subtitle cues).
 - `recording_archive.rs` — development-only copy of every clip sent to `transcribe_audio`, kept 7
   days in `debug-dictations/` for offline chunking and decoding tests. It needs the hand-set
   config.json key `"debugSaveAudio": true` and is ignored in official builds.
@@ -226,12 +238,15 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 ### Frontend (`src/views/`)
 
 - Plain HTML/CSS/JS, no bundler and no JS runtime dependency. Three windows are declared in
-  `src-tauri/tauri.conf.json` (served from `frontendDist: ../src/views`): `main` (home, History, and
-  the Settings page, which `main.html` loads as `settings.js`), `input-prompt` (the floating
+  `src-tauri/tauri.conf.json` (served from `frontendDist: ../src/views`): `main` (home, Files,
+  History, and the Settings page, which `main.html` loads as `settings.js`), `input-prompt` (the floating
   recording window) and `ax-cloud` (the Accessibility drag cloud).
 - `input-prompt.js` — the recording session state machine: capture, Qwen chunking
   (`chunk-decision.mjs`), Nemotron live audio, the VAD gate (`vad-gate.js`), retries, recovery and
   the insertion FIFO.
+- `files.js` — the Files page (loaded by `main.html`): lists file transcripts, shows progress,
+  copy and TXT/SRT export. Drops arrive as the main window's native `files-dropped` event (the
+  webview itself never sees a file drop).
 - `ipc-bridge.js` — the IPC abstraction. Exposes `window.__TYPEALOUD_IPC__` with
   `invoke(channel, ...args)` and `on(channel, handler)`, mapping renderer channel names
   (e.g. `transcribe-audio`) to Tauri commands (`transcribe_audio`) and event listeners.

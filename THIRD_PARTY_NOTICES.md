@@ -13,6 +13,9 @@ below keep their own licenses.
 | Webster's Second International word list (`web2`), lowercase entries, as distributed with FreeBSD and macOS in `/usr/share/dict` | 1934 | Public domain (copyright lapsed) | `src-tauri/src/data/english-words.txt` |
 | [Material Icons](https://github.com/google/material-design-icons) font | — | Apache-2.0 | `src/views/fonts/MaterialIcons-Regular.woff2` |
 | [sysinfo](https://github.com/GuillaumeGomez/sysinfo) | 0.33.1 | MIT | Native hardware detection; `system` feature only, pinned in `src-tauri/Cargo.lock` |
+| [Symphonia](https://github.com/pdeljanov/Symphonia) | 0.5.5 | MPL-2.0 | Decodes audio and video files on the Files page; unmodified, pinned in `src-tauri/Cargo.lock`, source on crates.io |
+| [rubato](https://github.com/HEnquist/rubato) | 0.16.2 | MIT | Resamples decoded files to 16 kHz |
+| [tauri-plugin-dialog](https://github.com/tauri-apps/plugins-workspace) / [rfd](https://github.com/PolyMeilex/rfd) | 2.8.4 / 0.17.2 | MIT OR Apache-2.0 / MIT | Native open and save dialogs for the Files page |
 | [arboard](https://github.com/1Password/arboard) | 3.6.1 | MIT OR Apache-2.0 | Windows-only, explicit Unicode clipboard copy; default/image features disabled |
 | [clipboard-win](https://github.com/DoumanAsh/clipboard-win) / [error-code](https://github.com/DoumanAsh/error-code) | 5.4.1 / 3.4.0 | BSL-1.0 | Windows clipboard backend and error handling used by arboard |
 

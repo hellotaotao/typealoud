@@ -246,6 +246,7 @@ function bindEvents() {
     renderRecent();
     renderHistory();
     renderDictionary();
+    window.TypeAloudFiles?.render?.();
     if (onboardingVisible()) {
       renderOnboarding();
     }
@@ -2663,6 +2664,9 @@ async function showPage(pageId, options = {}) {
   }
   if (pageId === "dictionary") {
     void refreshDictionaryLocalNote();
+  }
+  if (pageId === "files") {
+    await window.TypeAloudFiles?.show?.();
   }
   if (pageId === "settings") {
     await window.TypeAloudSettings?.show?.(options.settingsTarget || null);

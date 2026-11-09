@@ -1,6 +1,7 @@
 mod ax_cloud;
 mod commands;
 mod dictionary;
+mod file_transcription;
 mod filler;
 mod glass;
 mod history;
@@ -51,6 +52,8 @@ pub fn run() {
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
       tray::show_main_window(app);
     }))
+    // File pickers for the Files page, used from Rust only.
+    .plugin(tauri_plugin_dialog::init())
     .manage(state::AppState::default())
     .manage(native_capture::NativeCaptureState::default())
     .on_page_load(|webview, payload| {
@@ -109,6 +112,28 @@ pub fn run() {
         if label == "main" {
           api.prevent_close();
           let _ = window.hide();
+        }
+      }
+      // The webview never sees file drops (Tauri handles them natively), so
+      // the main window's drops reach the Files page as events. Paths stay
+      // inside the app: the page hands them straight back to transcribe_files.
+      if window.label() == "main" {
+        if let WindowEvent::DragDrop(drop) = event {
+          use tauri::{DragDropEvent, Emitter};
+          match drop {
+            DragDropEvent::Enter { paths, .. } => {
+              let media = paths.iter().any(|path| file_transcription::is_media_path(path));
+              let _ = window.emit("file-drag", serde_json::json!({ "active": true, "media": media }));
+            }
+            DragDropEvent::Leave => {
+              let _ = window.emit("file-drag", serde_json::json!({ "active": false }));
+            }
+            DragDropEvent::Drop { paths, .. } => {
+              let _ = window.emit("file-drag", serde_json::json!({ "active": false }));
+              let _ = window.emit("files-dropped", serde_json::json!({ "paths": paths }));
+            }
+            _ => {}
+          }
         }
       }
     })
@@ -287,6 +312,12 @@ pub fn run() {
       commands::check_for_updates,
       commands::get_update_status,
       commands::install_update_and_restart,
+      commands::transcribe_files,
+      commands::pick_transcription_files,
+      commands::get_file_transcripts,
+      commands::cancel_file_transcript,
+      commands::delete_file_transcript,
+      commands::export_file_transcript,
     ])
     .build(tauri::generate_context!())
     .expect("error while building tauri application")

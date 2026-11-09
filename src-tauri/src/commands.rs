@@ -1903,6 +1903,201 @@ pub fn delete_local_model(
   Ok(true)
 }
 
+// ---------------------------------------------------------------------------
+// File transcription (the Files page). The job runner lives in
+// file_transcription.rs; this adapter plugs it into the engine layer.
+
+struct FileEngine {
+  app: AppHandle,
+  http: reqwest::Client,
+  config: AppConfig,
+  route: TranscriptionRoute,
+  session_id: u64,
+}
+
+impl crate::file_transcription::SegmentEngine for FileEngine {
+  fn provider(&self) -> &str {
+    &self.config.provider
+  }
+
+  fn model(&self) -> &str {
+    &self.config.model
+  }
+
+  fn transcribe(
+    &self,
+    wav: Vec<u8>,
+  ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String>> + Send + '_>> {
+    Box::pin(async move {
+      match &self.route {
+        // No chunk index: these partials have no window to go to. The session
+        // id keeps one worker for the whole file, and the single inference
+        // slot lets a dictation in between each segment.
+        TranscriptionRoute::Local => {
+          perform_local_transcription(&self.app, &self.config, wav, "audio/wav", Some(self.session_id), None).await
+        }
+        TranscriptionRoute::Cloud { provider, api_key } => {
+          perform_transcription_request(&self.http, &self.config, provider, api_key, wav, "audio/wav".into()).await
+        }
+      }
+    })
+  }
+
+  // Each segment is a finished unit (a paragraph, a group of subtitle cues),
+  // so it gets the same final formatting as a whole dictation.
+  fn finalize(&self, raw: &str) -> String {
+    prepare_final_transcription(raw)
+  }
+
+  fn finish(&self) {
+    if matches!(self.route, TranscriptionRoute::Local) {
+      crate::local_asr::finish_resident_session(self.session_id);
+    }
+  }
+}
+
+/// The engine in use right now, fixed for the whole file. Fails up front when
+/// it cannot run (no key, model not downloaded) so nothing is queued in vain.
+fn file_engine(app: &AppHandle, state: &AppState) -> Result<Box<dyn crate::file_transcription::SegmentEngine>, String> {
+  let config = settings::read_config().map_err(|error| {
+    log::warn!("file transcription could not read settings: {error:#}");
+    RetryError::SettingsRead.code().to_owned()
+  })?;
+  let provider = validate_session_provider(&config.provider)?;
+  let route = resolve_transcription_route_for(provider, &config)?;
+  let config = transcription_config_for_provider(&config, provider);
+  if matches!(route, TranscriptionRoute::Local) {
+    let model = crate::local_asr::normalize_local_model_id(&config.model);
+    let ready = if model == crate::local_asr::NEMOTRON_MODEL_ID {
+      crate::nemotron_asr::supported() && crate::nemotron_asr::assets_ready()
+    } else {
+      crate::local_asr::assets_ready_for(model)
+    };
+    if !ready {
+      return Err("LOCAL_MODEL_MISSING".into());
+    }
+  }
+  Ok(Box::new(FileEngine {
+    app: app.clone(),
+    http: state.http_client.clone(),
+    config,
+    route,
+    session_id: crate::local_asr::next_file_session_id(),
+  }))
+}
+
+fn enqueue_media_files(
+  app: &AppHandle,
+  state: &AppState,
+  paths: Vec<std::path::PathBuf>,
+) -> Result<Vec<String>, String> {
+  let media: Vec<_> = paths
+    .into_iter()
+    .filter(|path| path.is_file() && crate::file_transcription::is_media_path(path))
+    .collect();
+  if media.is_empty() {
+    return Err(crate::file_transcription::FILE_UNSUPPORTED.into());
+  }
+  let mut ids = Vec::new();
+  for path in media {
+    let engine = file_engine(app, state)?;
+    ids.push(crate::file_transcription::enqueue(app.clone(), path, engine));
+  }
+  Ok(ids)
+}
+
+/// Files dropped on the main window arrive as paths from the window's
+/// drag-and-drop event, which the page forwards here.
+#[tauri::command]
+pub fn transcribe_files(
+  app: AppHandle,
+  state: State<'_, AppState>,
+  paths: Vec<String>,
+) -> Result<Vec<String>, String> {
+  enqueue_media_files(&app, &state, paths.into_iter().map(std::path::PathBuf::from).collect())
+}
+
+/// Open the system file picker and queue whatever the user chooses. Returns
+/// the ids queued, or an empty list when the picker was closed.
+#[tauri::command]
+pub async fn pick_transcription_files(
+  app: AppHandle,
+  state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+  use tauri_plugin_dialog::DialogExt;
+  // Check the engine before asking for files, so a missing key or model is
+  // reported without making the user pick a file first.
+  file_engine(&app, &state)?;
+  let (sender, receiver) = tokio::sync::oneshot::channel();
+  let mut dialog = app
+    .dialog()
+    .file()
+    .add_filter("Audio and video", crate::file_transcription::MEDIA_EXTENSIONS);
+  if let Some(window) = app.get_webview_window("main") {
+    dialog = dialog.set_parent(&window);
+  }
+  dialog.pick_files(move |files| {
+    let _ = sender.send(files);
+  });
+  let Some(files) = receiver.await.ok().flatten() else {
+    return Ok(Vec::new());
+  };
+  let paths = files.into_iter().filter_map(|file| file.into_path().ok()).collect();
+  enqueue_media_files(&app, &state, paths)
+}
+
+#[tauri::command]
+pub fn get_file_transcripts() -> Vec<crate::file_transcription::FileTranscript> {
+  crate::file_transcription::list()
+}
+
+#[tauri::command]
+pub fn cancel_file_transcript(id: String) -> bool {
+  crate::file_transcription::cancel(&id)
+}
+
+#[tauri::command]
+pub fn delete_file_transcript(app: AppHandle, id: String) -> bool {
+  crate::file_transcription::delete(&app, &id)
+}
+
+/// Save a transcript as plain text or SRT subtitles through the system save
+/// dialog. Returns false when the user closed the dialog.
+#[tauri::command]
+pub async fn export_file_transcript(app: AppHandle, id: String, format: String) -> Result<bool, String> {
+  use tauri_plugin_dialog::DialogExt;
+  let item = crate::file_transcription::get(&id).ok_or("Transcript not found")?;
+  let (contents, extension) = match format.as_str() {
+    "srt" => (crate::file_transcription::srt(&item.segments), "srt"),
+    _ => (crate::file_transcription::plain_text(&item.segments), "txt"),
+  };
+  let stem = Path::new(&item.file_name)
+    .file_stem()
+    .map(|stem| stem.to_string_lossy().into_owned())
+    .filter(|stem| !stem.is_empty())
+    .unwrap_or_else(|| "transcript".into());
+  let (sender, receiver) = tokio::sync::oneshot::channel();
+  let mut dialog = app
+    .dialog()
+    .file()
+    .set_file_name(format!("{stem}.{extension}"))
+    .add_filter(extension.to_uppercase(), &[extension]);
+  if let Some(window) = app.get_webview_window("main") {
+    dialog = dialog.set_parent(&window);
+  }
+  dialog.save_file(move |file| {
+    let _ = sender.send(file);
+  });
+  let Some(target) = receiver.await.ok().flatten().and_then(|file| file.into_path().ok()) else {
+    return Ok(false);
+  };
+  std::fs::write(&target, contents).map_err(|error| {
+    log::warn!("file transcription export failed: {error}");
+    "EXPORT_FAILED".to_string()
+  })?;
+  Ok(true)
+}
+
 pub fn current_accessibility_granted() -> bool {
   platform::accessibility_granted(false)
 }
