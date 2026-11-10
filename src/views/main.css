@@ -2078,6 +2078,14 @@ body {
   align-items: start;
 }
 
+.files-layout.files-layout-empty {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.files-detail[hidden] {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .files-layout {
     grid-template-columns: minmax(0, 1fr);

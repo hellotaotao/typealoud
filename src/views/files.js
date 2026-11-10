@@ -183,6 +183,10 @@ function actionButton(label, onClick, { primary = false, id = null } = {}) {
 function renderDetail() {
   const panel = document.getElementById("filesDetail");
   if (!panel) return;
+  // With nothing transcribed yet the list's empty note says it all; an
+  // empty detail panel beside it would only be a blank box.
+  panel.hidden = !items.length;
+  panel.parentElement?.classList.toggle("files-layout-empty", !items.length);
   const item = items.find((entry) => entry.id === selectedId);
   if (!item) {
     const hint = document.createElement("p");
