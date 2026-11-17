@@ -6,8 +6,8 @@ const small = "local-qwen", large = "local-qwen-large", nemotron = "local-nemotr
 
 test("onboarding uses named steps, with engine before permissions and no non-macOS Accessibility", () => {
   assert.equal(typeof module.onboardingSteps, "function", "named-step policy must exist");
-  assert.deepEqual(module.onboardingSteps("macos"), ["welcome", "privacy", "engine", "microphone", "accessibility", "practice"]);
-  for (const os of ["windows", "linux"]) assert.deepEqual(module.onboardingSteps(os), ["welcome", "privacy", "engine", "microphone", "practice"]);
+  assert.deepEqual(module.onboardingSteps("macos"), ["welcome", "privacy", "engine", "microphone", "accessibility", "shortcut", "practice"]);
+  for (const os of ["windows", "linux"]) assert.deepEqual(module.onboardingSteps(os), ["welcome", "privacy", "engine", "microphone", "shortcut", "practice"]);
 });
 
 test("onboarding offers Qwen and OpenAI up front, Groq and Nemotron under more, and never 1.7B", () => {

@@ -32,7 +32,7 @@ const SEND_INTERVAL: Duration = Duration::from_secs(60 * 60);
 const SEND_TIMEOUT: Duration = Duration::from_secs(20);
 
 const ONBOARDING_STEPS: &[&str] =
-  &["welcome", "privacy", "engine", "microphone", "accessibility", "practice"];
+  &["welcome", "privacy", "engine", "microphone", "accessibility", "shortcut", "practice"];
 /// Reaching any of these means the privacy page, which describes these
 /// statistics and carries their switch, has been shown.
 const STEPS_BEFORE_DISCLOSURE: &[&str] = &["welcome", "privacy"];

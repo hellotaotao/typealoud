@@ -1097,6 +1097,118 @@ body {
   animation: ax-guide-spin 1.6s linear infinite;
 }
 
+/* Shortcut picker (onboarding shortcut page and Settings): choice cards
+   above a tester whose keycaps light up while the keys are down. */
+.shortcut-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 22px;
+  text-align: left;
+}
+
+.shortcut-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.shortcut-option {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border: 1.5px solid var(--input-border);
+  border-radius: 12px;
+  background: var(--input-bg);
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.shortcut-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+}
+
+.shortcut-option:disabled {
+  cursor: progress;
+}
+
+.shortcut-option-keys {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shortcut-option-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  background: var(--pill-ok-bg);
+  color: var(--pill-ok-text);
+  padding: 2.5px 8px;
+  border-radius: 6px;
+}
+
+.shortcut-option-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-soft);
+}
+
+.shortcut-more-toggle {
+  align-self: flex-start;
+}
+
+.shortcut-tester {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 16px;
+  border: 1.5px dashed var(--input-border);
+  border-radius: 12px;
+}
+
+.shortcut-tester.passed {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.shortcut-test-keys {
+  display: flex;
+  gap: 8px;
+}
+
+.kbd.shortcut-test-key {
+  min-width: 44px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 17px;
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.kbd.shortcut-test-key.down {
+  background: var(--accent-soft-bg);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.shortcut-test-status {
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.shortcut-tester.passed .shortcut-test-status {
+  color: var(--pill-ok-text);
+}
+
 /* Page 5: provider + key */
 .ob-providers {
   display: flex;

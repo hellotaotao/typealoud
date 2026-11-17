@@ -52,7 +52,7 @@ test("Settings uses two horizontal accessible tabs", () => {
 
 test("settings are grouped by what the user came to do", () => {
   const dictation = sectionSource("settings-panel-dictation");
-  for (const id of ["shortcutSelect", "languageSelect", "openDictionaryBtn"]) {
+  for (const id of ["shortcutPicker", "languageSelect", "openDictionaryBtn"]) {
     assert.match(dictation, new RegExp(`id="${id}"`));
   }
   assert.match(dictation, /id="providerSelect"/);
@@ -333,7 +333,7 @@ test("model setup opens Dictation while update checks still open App", () => {
 
 test("default settings prioritizes engines and collapses local maintenance", () => {
   const panel = sectionSource("settings-panel-dictation");
-  assert.ok(panel.indexOf('id="engineCards"') < panel.indexOf('id="shortcutSelect"'));
+  assert.ok(panel.indexOf('id="engineCards"') < panel.indexOf('id="shortcutPicker"'));
   assert.match(panel, /<details[^>]*id="engineAdvanced"/);
   assert.match(panel, /id="dictationOptions"/);
   assert.doesNotMatch(mainHtml, /data-settings-tab="engines"/);

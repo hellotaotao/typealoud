@@ -8,7 +8,7 @@ Free, open-source dictation for Mac and Windows. Hold a key, speak, and the text
 
 ## Features
 
-- **Hold-to-Record Hotkey**: Hold down Ctrl+Shift to start recording, release to stop and transcribe. Double-tap Ctrl+Shift to record hands-free; press it once more to finish
+- **Hold-to-Record Hotkey**: Hold the dictation key to start recording, release to stop and transcribe. Double-tap it to record hands-free; press it once more to finish. New installs use the right Option key on macOS and Ctrl+Win on Windows; the first-use guide and Settings let you pick another and try it on the spot
 - **Real-time Audio Visualization**: Waveform animation while recording
 - **Local-first AI Transcription**: Qwen3-ASR runs on-device for batch quality (0.6B by default, 1.7B as a larger option); Nemotron 3.5 adds live local transcription on Apple Silicon and Windows x64. Groq and OpenAI remain optional cloud choices
 - **Auto-typing**: Inserts transcribed text into the active application (macOS and Windows; Linux experimental, untested)
@@ -62,8 +62,8 @@ Releases are built, signed, and published automatically when a `v*` tag is pushe
 
 1. Launch TypeAloud
 2. Complete the first-use guide, or configure an engine and permissions in Settings; wait until the selected engine is ready
-3. Hold down Ctrl+Shift to start recording
-4. Speak while holding the keys
+3. Hold the dictation key (right Option on macOS, Ctrl+Win on Windows by default) to start recording
+4. Speak while holding it
 5. Release to stop recording and transcribe
 6. Text is inserted into the active application (macOS and Windows; Linux experimental, untested)
 7. Press Escape to cancel recording or an in-progress transcription
@@ -111,7 +111,7 @@ Project direction: [Product pathway](docs/PRODUCT_PATHWAY.md) · [Reliability ac
 
 ## 功能特性
 
-- **按住录音快捷键**:按住 Ctrl+Shift 开始录音,松开即停止并转写;双击 Ctrl+Shift 可免按住录音,再按一下结束
+- **按住录音快捷键**:按住说话键开始录音,松开即停止并转写;双击可免按住录音,再按一下结束。新安装时 macOS 默认右 Option,Windows 默认 Ctrl+Win;首次引导和设置里可以换成别的键并当场试按
 - **实时音频可视化**:录音时显示波形动画
 - **本地优先 AI 转写**:Qwen3-ASR 在本机提供高质量批量转写(默认 0.6B,也可选更大的 1.7B);Nemotron 3.5 在 Apple Silicon 和 Windows x64 上提供本地实时转写。Groq 和 OpenAI 作为可选云端方案
 - **自动输入**:将转写结果插入到当前活动应用(macOS;Windows/Linux 为实验性支持,未经真机验证)
@@ -165,7 +165,7 @@ npm run build:linux
 
 1. 启动 TypeAloud
 2. 完成首次引导，或在设置中配置引擎与权限；等当前引擎就绪后再录音
-3. 按住 Ctrl+Shift 开始录音
+3. 按住说话键开始录音(默认 macOS 为右 Option,Windows 为 Ctrl+Win)
 4. 按住按键的同时说话
 5. 松开按键停止录音并转写
 6. 文字会插入到当前活动应用(macOS;Windows/Linux 为实验性支持,未经真机验证)

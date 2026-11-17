@@ -115,6 +115,16 @@
         <div class="ob-actions" id="obAxActions"></div>
       </div>
 
+      <!-- Shortcut: choose the dictation key and prove it reaches the app. -->
+      <div class="onboard-page" data-ob-step="shortcut">
+        <div class="onboard-page-content">
+          <div class="ob-hero-icon"><span class="material-icons" aria-hidden="true">keyboard</span></div>
+          <h1 data-i18n="onboarding.shortcut.title">Pick your dictation key</h1>
+          <p class="ob-lead" data-i18n="onboarding.shortcut.lead">Hold it to talk, let go to insert the text. Try it below before moving on.</p>
+          <div id="obShortcutPicker"></div>
+        </div>
+      </div>
+
       <!-- Practice -->
       <div class="onboard-page" data-ob-step="practice">
         <div class="onboard-page-content">
@@ -406,19 +416,15 @@
           </div>
 
           <div class="setting-group">
-            <div class="setting-item">
+            <div class="setting-item setting-item-stacked">
               <div class="setting-info">
                 <div class="setting-title" data-i18n="settings.recordingShortcut.title">Recording shortcut</div>
                 <div class="setting-description" data-i18n="settings.recordingShortcut.description">
                   Hold this shortcut to talk; release to finish.
                 </div>
               </div>
-              <div class="setting-control">
-                <select class="input shortcut-select" id="shortcutSelect" title="Select recording shortcut" data-i18n="settings.recordingShortcut.selectTitle" data-i18n-attr="title">
-                  <option value="Ctrl+Shift">Ctrl + Shift</option>
-                  <option value="Ctrl+Alt">Ctrl + Alt</option>
-                </select>
-              </div>
+              <!-- Filled by shortcut-picker.js: the choices plus a live tester. -->
+              <div id="shortcutPicker"></div>
             </div>
           </div>
 
@@ -854,6 +860,7 @@
   <script src="native-glass.js"></script>
   <script src="i18n.js"></script>
   <script src="microphone-access.js"></script>
+  <script src="shortcut-picker.js"></script>
   <script src="main.js"></script>
   <script src="settings.js"></script>
   <script src="files.js"></script>

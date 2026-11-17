@@ -67,6 +67,7 @@ function harness(options = {}) {
     MediaRecorder: FakeMediaRecorder, performance,
     requestAnimationFrame() {}, setTimeout() { return 1; }, clearTimeout() {},
   });
+  vm.runInContext(read("./shortcut-picker.js"), context);
   vm.runInContext(`${read("./input-prompt.js")}\n;globalThis.Prompt = VoiceInputPrompt;`, context);
   const prompt = Object.assign(Object.create(context.Prompt.prototype), {
     isRecording: false, starting: false, stopRequested: false,

@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -362,8 +361,24 @@ pub fn read_config_from_path(path: &Path) -> Result<AppConfig> {
   read_config_from_path_with_tier(path, crate::hardware::local_tier())
 }
 
+/// The record shortcut a new install starts with. macOS: the right Option key,
+/// which does nothing on its own and leaves the left hand free. Windows: Ctrl+Win,
+/// since Ctrl+Shift cycles input methods there, a lone Alt moves focus to the
+/// menu bar and the right Ctrl is missing on laptops with a Copilot key. Linux
+/// keeps the original Ctrl+Shift. Existing installs keep what they saved.
+pub fn new_install_shortcut() -> &'static str {
+  if cfg!(target_os = "macos") {
+    "RightAlt"
+  } else if cfg!(target_os = "windows") {
+    "Ctrl+Meta"
+  } else {
+    DEFAULT_RECORD_SHORTCUT
+  }
+}
+
 pub fn fresh_config_for(tier: crate::hardware::LocalTier) -> AppConfig {
   let mut config = AppConfig::default();
+  config.shortcut = new_install_shortcut().into();
   if tier != crate::hardware::LocalTier::CloudDefault {
     config.provider = crate::local_asr::LOCAL_PROVIDER.into();
     config.model = crate::local_asr::QWEN_MODEL_ID.into();
@@ -448,30 +463,9 @@ pub fn selected_api_key(config: &AppConfig) -> String {
 }
 
 pub fn normalize_record_shortcut(value: &str) -> String {
-  let mut modifiers = BTreeSet::new();
-  for token in value.split('+').map(|token| token.trim().to_ascii_lowercase()) {
-    let normalized = match token.as_str() {
-      "ctrl" | "control" => Some("Ctrl"),
-      "shift" => Some("Shift"),
-      "alt" | "option" => Some("Alt"),
-      "meta" | "command" | "cmd" | "super" | "win" | "windows" => Some("Meta"),
-      _ => None,
-    };
-    if let Some(modifier) = normalized {
-      modifiers.insert(modifier);
-    }
-  }
-
-  let ordered = ["Ctrl", "Shift", "Alt", "Meta"]
-    .into_iter()
-    .filter(|modifier| modifiers.contains(modifier))
-    .collect::<Vec<_>>();
-
-  if ordered.len() < 2 {
-    return DEFAULT_RECORD_SHORTCUT.into();
-  }
-
-  ordered.join("+")
+  crate::hotkey::Shortcut::parse(value)
+    .map(|shortcut| shortcut.canonical())
+    .unwrap_or_else(|| DEFAULT_RECORD_SHORTCUT.into())
 }
 
 /// Whether the macOS login-item registration must be re-applied.
@@ -668,6 +662,25 @@ mod tests {
     assert_eq!(normalize_record_shortcut("Shift+Alt"), "Shift+Alt");
     assert_eq!(normalize_record_shortcut("Ctrl+Shift+Alt"), "Ctrl+Shift+Alt");
     assert_eq!(normalize_record_shortcut("control + option"), "Ctrl+Alt");
+    assert_eq!(normalize_record_shortcut("Win+Ctrl"), "Ctrl+Meta");
+    assert_eq!(normalize_record_shortcut("rightoption"), "RightAlt");
+    assert_eq!(normalize_record_shortcut("RightMeta"), "RightMeta");
+    assert_eq!(normalize_record_shortcut("RightCtrl"), "RightCtrl");
+    assert_eq!(normalize_record_shortcut("Alt"), DEFAULT_RECORD_SHORTCUT);
+    assert_eq!(normalize_record_shortcut("RightShift"), DEFAULT_RECORD_SHORTCUT);
+    assert_eq!(normalize_record_shortcut("Ctrl+Bogus"), DEFAULT_RECORD_SHORTCUT);
+  }
+
+  #[test]
+  fn only_new_installs_get_the_platform_shortcut() {
+    use crate::hardware::LocalTier;
+    assert_eq!(fresh_config_for(LocalTier::Qwen).shortcut, new_install_shortcut());
+    assert_eq!(fresh_config_for(LocalTier::CloudDefault).shortcut, new_install_shortcut());
+    // A saved config without the field, and the struct default, keep the old one.
+    assert_eq!(AppConfig::default().shortcut, DEFAULT_RECORD_SHORTCUT);
+    let saved: AppConfig = serde_json::from_str(r#"{"provider":"groq"}"#).unwrap();
+    assert_eq!(saved.shortcut, DEFAULT_RECORD_SHORTCUT);
+    assert_eq!(normalize_record_shortcut(new_install_shortcut()), new_install_shortcut());
   }
 
   #[test]

@@ -156,8 +156,13 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   `tauri.updater-e2e.conf.json` (localhost harness), so local builds never need the key. Design:
   `docs/superpowers/specs/2026-07-13-auto-update-design.md`.
 - `hotkey.rs` — global hold-to-record: a CGEventTap on macOS (only when Accessibility is trusted),
-  `rdev::listen` elsewhere. Parses the modifier-only record shortcut (default `Ctrl+Shift`) and
-  emits start/stop/cancel events. `STOP_DEBOUNCE` (250 ms) absorbs an accidental
+  `rdev::listen` elsewhere. Parses the modifier-only record shortcut: two or more modifiers
+  (`Ctrl+Meta`) or one right-hand Ctrl/Alt/Meta (`RightAlt`); left and right keys are told apart
+  (macOS through the device-dependent flag bits). New installs get `RightAlt` on macOS, `Ctrl+Meta`
+  on Windows and `Ctrl+Shift` on Linux (`settings::new_install_shortcut`); saved configs keep theirs.
+  It emits start/stop/cancel events. While the shortcut tester is open (`set_hotkey_probe`, the
+  onboarding shortcut step and Settings) and the main window has focus, gestures go to the
+  `hotkey-probe` event instead of recording. `STOP_DEBOUNCE` (250 ms) absorbs an accidental
   release; keep it. A press under `CANCEL_THRESHOLD` (500 ms) is a tap: with no second press within
   `DOUBLE_TAP_WINDOW` (350 ms) it emits `tap-recording` (the prompt re-inserts a visible failure
   card's text at the caret, otherwise it cancels); a second press emits `lock-recording` and the
@@ -349,8 +354,8 @@ permission changes and platform-specific behavior explicitly.
 
 ## Development Notes
 
-- Hold `Ctrl+Shift` to record, or double-tap it to record hands-free until the next press; Escape
-  cancels. There is no translate mode; the Shift+Alt
+- Hold the record shortcut to record (this dev machine's saved config may still be `Ctrl+Shift`), or
+  double-tap it to record hands-free until the next press; Escape cancels. There is no translate mode; the Shift+Alt
   translation was removed on 2026-09-25 as unused.
 - Rust unit tests sit beside the code. A few tests that need real model assets are `#[ignore]` and
   run manually.

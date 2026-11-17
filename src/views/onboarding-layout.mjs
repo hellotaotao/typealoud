@@ -1,6 +1,8 @@
 // Keep hardware presentation separate from persisted engine intent and readiness.
 export function onboardingSteps(os) {
-  return ["welcome", "privacy", "engine", "microphone", ...(os === "macos" ? ["accessibility"] : []), "practice"];
+  // The shortcut step follows Accessibility: on macOS the key can't be heard,
+  // and so can't be tested, until that permission is granted.
+  return ["welcome", "privacy", "engine", "microphone", ...(os === "macos" ? ["accessibility"] : []), "shortcut", "practice"];
 }
 
 export function onboardingEngineLayout(localTier, nemotronSupported) {

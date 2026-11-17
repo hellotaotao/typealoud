@@ -90,6 +90,8 @@ function loadVoiceInputPrompt(options = {}) {
     ...(options.globals || {}),
   });
 
+  // input-prompt.html loads the shared shortcut labels first.
+  vm.runInContext(readFileSync(new URL("./shortcut-picker.js", import.meta.url), "utf8"), context);
   vm.runInContext(
     `${source}\n;globalThis.__VoiceInputPrompt = VoiceInputPrompt;\n;globalThis.__normalizeRecordingStartPayload = typeof normalizeRecordingStartPayload === "function" ? normalizeRecordingStartPayload : null;`,
     context,

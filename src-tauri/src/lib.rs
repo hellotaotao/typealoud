@@ -294,6 +294,8 @@ pub fn run() {
       commands::save_dictionary,
       commands::set_onboarding_completed,
       commands::set_usage_stats,
+      commands::set_record_shortcut,
+      commands::set_hotkey_probe,
       commands::record_onboarding_step,
       commands::get_usage_preview,
       commands::save_onboarding_api_key,

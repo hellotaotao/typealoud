@@ -35,6 +35,7 @@ function harness(toggle, enabled) {
     } },
     initI18n() {}, applyTheme() {}, setSelectValue() {}, applyNemotronAvailability() {},
     toggleProviderFields() {}, renderSettingChoices() {}, renderEngineCards() {}, showSaveStatus() {},
+    renderShortcutPicker() {},
     refreshLocalModelStatus: async () => {}, refreshGpuRuntimeStatus: async () => {},
     checkMicrophonePermissionStatus: async () => {}, checkAccessibilityStatus: async () => {},
     normalizeThemePref: value => value || "elegant", translate: key => key,

@@ -43,21 +43,11 @@ function watchSystemTheme() {
   });
 }
 
-// Render each modifier as an OS-appropriate keycap: Apple glyphs on macOS,
-// plain words (Ctrl/Shift/Alt/Win|Super) on Windows/Linux. Driven by the backend
-// `os` field (get-settings), with a navigator fallback before settings load.
+// Render each key as an OS-appropriate keycap: Apple glyphs on macOS, words
+// (Ctrl/Shift/Alt/Win|Super) elsewhere, "Right ⌥" for a right-hand key.
+// Driven by the backend `os` field, with a navigator fallback before settings load.
 function shortcutKeycaps(shortcut) {
-  const os = (cachedSettings?.os || "").toLowerCase();
-  const isMac = os ? os === "macos" : /Mac/i.test(navigator.platform || "");
-  const metaWord = os === "linux" ? "Super" : "Win";
-  const macGlyphs = { ctrl: "⌃", control: "⌃", shift: "⇧", alt: "⌥", option: "⌥", cmd: "⌘", command: "⌘", meta: "⌘", super: "⌘", win: "⌘", windows: "⌘" };
-  const textWords = { ctrl: "Ctrl", control: "Ctrl", shift: "Shift", alt: "Alt", option: "Alt", cmd: metaWord, command: metaWord, meta: metaWord, super: metaWord, win: metaWord, windows: metaWord };
-  const map = isMac ? macGlyphs : textWords;
-  return String(shortcut || "")
-    .split("+")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => map[part.toLowerCase()] || part);
+  return window.TypeAloudShortcuts.keycaps(shortcut, cachedSettings?.os, t);
 }
 
 function engineReady(settings) {
@@ -233,6 +223,12 @@ function bindEvents() {
     void refreshReadiness();
   });
 
+  ipc.on("hotkey-probe", (_event, payload) => {
+    if (!onboardingVisible() || obCurrent !== "shortcut" || !obShortcutPicker) return;
+    obShortcutPicker.handleProbe(payload);
+    renderObFooter();
+  });
+
   ipc.on("ui-language-updated", async (_event, payload) => {
     if (!payload) {
       return;
@@ -247,6 +243,7 @@ function bindEvents() {
     renderHistory();
     renderDictionary();
     window.TypeAloudFiles?.render?.();
+    obShortcutPicker?.refresh();
     if (onboardingVisible()) {
       renderOnboarding();
     }
@@ -1207,6 +1204,8 @@ let obSelectionPending = false;
 let obLayoutSignature = "";
 let obPracticeActivity = false;
 let obTryFocused = false;
+let obShortcutPicker = null;
+let obRenderedStep = "";
 
 function obSteps() {
   const os = cachedSettings?.os || (/Mac/i.test(navigator.platform || "") ? "macos" : "windows");
@@ -1243,9 +1242,11 @@ function pauseOnboarding() {
   if (!onboardingVisible()) return;
   document.getElementById("onboarding").hidden = true;
   obPaused = true;
+  obRenderedStep = "";
   if (obAdvanceTimer) window.clearTimeout(obAdvanceTimer);
   obAdvanceTimer = null;
   renderObResume();
+  syncHotkeyProbe();
 }
 
 function resumeOnboarding() {
@@ -1270,7 +1271,9 @@ async function finishOnboarding() {
   const overlay = document.getElementById("onboarding");
   if (overlay) overlay.hidden = true;
   obPaused = false;
+  obRenderedStep = "";
   renderObResume();
+  syncHotkeyProbe();
   if (obAdvanceTimer) window.clearTimeout(obAdvanceTimer);
   obAdvanceTimer = null;
   try {
@@ -1324,9 +1327,51 @@ function renderOnboarding() {
   renderObAx();
   renderObLocal();
   renderObKey();
+  renderObShortcut();
   renderObFooter();
   renderObFinal();
   renderObPracticeFeedback();
+  syncHotkeyProbe();
+}
+
+// While a shortcut tester is on screen, presses made in this window light its
+// keycaps instead of starting a dictation (the backend checks window focus, so
+// the shortcut keeps working in every other app).
+let hotkeyProbeOn = false;
+function syncHotkeyProbe() {
+  const settingsShown = !onboardingVisible() && !!document.getElementById("settings-page")?.classList.contains("active");
+  const wanted = (onboardingVisible() && obCurrent === "shortcut") || settingsShown;
+  if (wanted === hotkeyProbeOn) return;
+  hotkeyProbeOn = wanted;
+  void Promise.resolve(ipc.invoke("set-hotkey-probe", wanted)).catch((error) => {
+    console.error("Failed to switch the shortcut tester:", error);
+  });
+}
+
+function renderObShortcut() {
+  if (!obShortcutPicker) {
+    const host = document.getElementById("obShortcutPicker");
+    if (!host || !window.TypeAloudShortcuts) return;
+    obShortcutPicker = window.TypeAloudShortcuts.createPicker({
+      os: cachedSettings?.os,
+      translate: t,
+      onSelect: async (value) => {
+        const saved = await ipc.invoke("set-record-shortcut", value);
+        if (cachedSettings) cachedSettings.shortcut = saved;
+        renderObKeycaps();
+        renderObFooter();
+        return saved;
+      },
+    });
+    host.appendChild(obShortcutPicker.element);
+  }
+  obShortcutPicker.setValue(cachedSettings?.shortcut || "Ctrl+Shift");
+  // Without Accessibility the macOS listener isn't running: nothing to hear.
+  const axMissing = obSteps().includes("accessibility") && !obAxGranted;
+  obShortcutPicker.setUnavailable(axMissing ? "shortcut.test.axNeeded" : "");
+  // Each visit starts a fresh test, so the "nothing detected" hint times from now.
+  if (obCurrent === "shortcut" && obRenderedStep !== "shortcut") obShortcutPicker.restartTest();
+  obRenderedStep = obCurrent;
 }
 
 // Each step is counted once per install (usage.rs dedupes); this set only
@@ -1588,6 +1633,7 @@ function obStepSatisfied(step) {
   if (step === "microphone") return obMicState === "granted" || obMicState === "unknown";
   if (step === "accessibility") return obAxGranted;
   if (step === "engine") return obEngineState().selected;
+  if (step === "shortcut") return !!obShortcutPicker?.passed;
   return true;
 }
 
@@ -1622,7 +1668,7 @@ function renderObDownloadFooter() {
 function renderObFooter() {
   if (!onboardingVisible()) return;
   const satisfied = obStepSatisfied(obCurrent);
-  const gated = ["engine", "microphone", "accessibility"].includes(obCurrent);
+  const gated = ["engine", "microphone", "accessibility", "shortcut"].includes(obCurrent);
   const back = document.getElementById("obBackBtn");
   if (back) back.style.visibility = obCurrent === "welcome" ? "hidden" : "visible";
   const skip = document.getElementById("obSkipBtn");
@@ -2659,6 +2705,7 @@ async function showPage(pageId, options = {}) {
   document.querySelectorAll(".nav-item[data-page]").forEach((item) => {
     item.classList.toggle("active", item.getAttribute("data-page") === pageId);
   });
+  syncHotkeyProbe();
   if (pageId === "history") {
     renderHistory();
   }

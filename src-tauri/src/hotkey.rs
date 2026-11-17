@@ -45,122 +45,159 @@ struct RecordingLockEvent {
   lock_id: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Shortcut {
-  pub ctrl: bool,
-  pub shift: bool,
-  pub alt: bool,
-  pub meta: bool,
+/// How a shortcut uses one modifier: not at all, either physical key, or only
+/// the right-hand one (single-key shortcuts such as the right Option key).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum KeyUse {
+  #[default]
+  Unused,
+  Either,
+  RightOnly,
 }
 
-impl Shortcut {
-  pub fn parse(value: &str) -> Option<Self> {
-    let mut shortcut = Shortcut {
-      ctrl: false,
-      shift: false,
-      alt: false,
-      meta: false,
-    };
-    let mut count = 0;
-
-    for token in value.split('+') {
-      match token.trim().to_ascii_lowercase().as_str() {
-        "ctrl" | "control" => {
-          if !shortcut.ctrl {
-            count += 1;
-          }
-          shortcut.ctrl = true;
-        }
-        "shift" => {
-          if !shortcut.shift {
-            count += 1;
-          }
-          shortcut.shift = true;
-        }
-        "alt" | "option" => {
-          if !shortcut.alt {
-            count += 1;
-          }
-          shortcut.alt = true;
-        }
-        "meta" | "command" | "cmd" | "super" | "win" | "windows" => {
-          if !shortcut.meta {
-            count += 1;
-          }
-          shortcut.meta = true;
-        }
-        "" => {}
-        _ => return None,
-      }
-    }
-
-    if count >= 2 {
-      Some(shortcut)
-    } else {
-      None
+impl KeyUse {
+  fn matches(self, held: Sides) -> bool {
+    match self {
+      KeyUse::Unused => !held.any(),
+      KeyUse::Either => held.any(),
+      KeyUse::RightOnly => held.right && !held.left,
     }
   }
 
+  /// Whether a key this shortcut uses is still down.
+  fn is_down(self, held: Sides) -> bool {
+    match self {
+      KeyUse::Unused => false,
+      KeyUse::Either => held.any(),
+      KeyUse::RightOnly => held.right,
+    }
+  }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Shortcut {
+  pub ctrl: KeyUse,
+  pub shift: KeyUse,
+  pub alt: KeyUse,
+  pub meta: KeyUse,
+}
+
+impl Shortcut {
+  /// Accepts two or more modifiers ("Ctrl+Shift", "Ctrl+Meta"), or a single
+  /// right-hand Ctrl, Alt/Option or Meta/Command ("RightAlt"). A single left or
+  /// generic modifier would fire on every ordinary shortcut, and a lone Shift
+  /// toggles many input methods, so neither is a valid record shortcut.
+  pub fn parse(value: &str) -> Option<Self> {
+    let mut shortcut = Shortcut::default();
+    for token in value.split('+') {
+      let token = token.trim().to_ascii_lowercase();
+      if token.is_empty() {
+        continue;
+      }
+      let (name, key_use) = match token.strip_prefix("right") {
+        Some(rest) => (rest.to_string(), KeyUse::RightOnly),
+        None => (token, KeyUse::Either),
+      };
+      let slot = match name.as_str() {
+        "ctrl" | "control" => &mut shortcut.ctrl,
+        "shift" if key_use == KeyUse::Either => &mut shortcut.shift,
+        "alt" | "option" => &mut shortcut.alt,
+        "meta" | "command" | "cmd" | "super" | "win" | "windows" => &mut shortcut.meta,
+        _ => return None,
+      };
+      if *slot != KeyUse::Unused && *slot != key_use {
+        return None;
+      }
+      *slot = key_use;
+    }
+
+    let used = shortcut.uses();
+    let single_right = used.len() == 1 && used[0] == KeyUse::RightOnly;
+    (used.len() >= 2 || single_right).then_some(shortcut)
+  }
+
+  fn uses(&self) -> Vec<KeyUse> {
+    [self.ctrl, self.shift, self.alt, self.meta]
+      .into_iter()
+      .filter(|key_use| *key_use != KeyUse::Unused)
+      .collect()
+  }
+
+  /// The stored spelling: modifiers in Ctrl, Shift, Alt, Meta order, a
+  /// right-hand one prefixed with "Right" ("Ctrl+Meta", "RightAlt").
+  pub fn canonical(&self) -> String {
+    [(self.ctrl, "Ctrl"), (self.shift, "Shift"), (self.alt, "Alt"), (self.meta, "Meta")]
+      .into_iter()
+      .filter_map(|(key_use, name)| match key_use {
+        KeyUse::Unused => None,
+        KeyUse::Either => Some(name.to_string()),
+        KeyUse::RightOnly => Some(format!("Right{name}")),
+      })
+      .collect::<Vec<_>>()
+      .join("+")
+  }
+}
+
+/// Which physical copies of one modifier are down.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Sides {
+  pub left: bool,
+  pub right: bool,
+}
+
+impl Sides {
+  pub fn any(self) -> bool {
+    self.left || self.right
+  }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct ModifierState {
-  pub ctrl: bool,
-  pub shift: bool,
-  pub alt: bool,
-  pub meta: bool,
+  pub ctrl: Sides,
+  pub shift: Sides,
+  pub alt: Sides,
+  pub meta: Sides,
 }
 
 impl ModifierState {
   pub fn press(&mut self, key: Key) -> bool {
-    match key {
-      Key::ControlLeft | Key::ControlRight => {
-        self.ctrl = true;
-        true
-      }
-      Key::ShiftLeft | Key::ShiftRight => {
-        self.shift = true;
-        true
-      }
-      Key::Alt | Key::AltGr => {
-        self.alt = true;
-        true
-      }
-      Key::MetaLeft | Key::MetaRight => {
-        self.meta = true;
-        true
-      }
-      _ => false,
-    }
+    self.set(key, true)
   }
 
   pub fn release(&mut self, key: Key) -> bool {
-    match key {
-      Key::ControlLeft | Key::ControlRight => {
-        self.ctrl = false;
-        true
-      }
-      Key::ShiftLeft | Key::ShiftRight => {
-        self.shift = false;
-        true
-      }
-      Key::Alt | Key::AltGr => {
-        self.alt = false;
-        true
-      }
-      Key::MetaLeft | Key::MetaRight => {
-        self.meta = false;
-        true
-      }
-      _ => false,
-    }
+    self.set(key, false)
+  }
+
+  // rdev reports the right Alt as AltGr; the macOS tap maps right Option to it.
+  fn set(&mut self, key: Key, down: bool) -> bool {
+    let side = match key {
+      Key::ControlLeft => &mut self.ctrl.left,
+      Key::ControlRight => &mut self.ctrl.right,
+      Key::ShiftLeft => &mut self.shift.left,
+      Key::ShiftRight => &mut self.shift.right,
+      Key::Alt => &mut self.alt.left,
+      Key::AltGr => &mut self.alt.right,
+      Key::MetaLeft => &mut self.meta.left,
+      Key::MetaRight => &mut self.meta.right,
+      _ => return false,
+    };
+    *side = down;
+    true
   }
 
   pub fn matches(&self, shortcut: &Shortcut) -> bool {
-    self.ctrl == shortcut.ctrl
-      && self.shift == shortcut.shift
-      && self.alt == shortcut.alt
-      && self.meta == shortcut.meta
+    shortcut.ctrl.matches(self.ctrl)
+      && shortcut.shift.matches(self.shift)
+      && shortcut.alt.matches(self.alt)
+      && shortcut.meta.matches(self.meta)
+  }
+
+  /// No key the shortcut uses is down any more.
+  pub fn shortcut_keys_up(&self, shortcut: &Shortcut) -> bool {
+    !(shortcut.ctrl.is_down(self.ctrl)
+      || shortcut.shift.is_down(self.shift)
+      || shortcut.alt.is_down(self.alt)
+      || shortcut.meta.is_down(self.meta))
   }
 }
 
@@ -193,6 +230,9 @@ pub enum HotkeyMsg {
   /// The frontend ended a locked recording on its own (startup failure,
   /// interrupted capture), so the next press must start, not stop.
   ReleaseLock(u64),
+  /// The shortcut tester (onboarding, Settings) is open: while the main window
+  /// has focus, presses are reported to it instead of recording.
+  SetProbe(bool),
 }
 
 #[derive(Clone)]
@@ -208,6 +248,52 @@ impl HotkeyHandle {
   pub fn release_lock(&self, lock_id: u64) {
     let _ = self.tx.send(HotkeyMsg::ReleaseLock(lock_id));
   }
+
+  pub fn set_probe(&self, enabled: bool) {
+    let _ = self.tx.send(HotkeyMsg::SetProbe(enabled));
+  }
+}
+
+/// What the shortcut tester shows: which of the shortcut's keys are down,
+/// whether the whole shortcut is held, and the gesture it just completed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProbeEvent {
+  held: bool,
+  down: Vec<&'static str>,
+  action: Option<&'static str>,
+}
+
+fn probe_keys(state: &HotkeyState) -> ProbeEvent {
+  let (shortcut, held) = (&state.record_shortcut, &state.modifiers);
+  let down = [
+    (shortcut.ctrl, held.ctrl, "ctrl"),
+    (shortcut.shift, held.shift, "shift"),
+    (shortcut.alt, held.alt, "alt"),
+    (shortcut.meta, held.meta, "meta"),
+  ]
+  .into_iter()
+  .filter(|(key_use, sides, _)| key_use.is_down(*sides))
+  .map(|(_, _, name)| name)
+  .collect();
+  ProbeEvent { held: state.combo_held(), down, action: None }
+}
+
+fn probe_action_label(action: Action) -> &'static str {
+  match action {
+    Action::Start => "start",
+    Action::Stop => "stop",
+    Action::Cancel => "cancel",
+    Action::Tap => "tap",
+    Action::Lock(_) => "lock",
+  }
+}
+
+fn main_window_focused(app: &AppHandle) -> bool {
+  app
+    .get_webview_window("main")
+    .and_then(|window| window.is_focused().ok())
+    .unwrap_or(false)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -264,8 +350,7 @@ impl HotkeyState {
   }
 
   fn combo_keys_up(&self) -> bool {
-    let (keys, held) = (&self.record_shortcut, &self.modifiers);
-    !(keys.ctrl && held.ctrl || keys.shift && held.shift || keys.alt && held.alt || keys.meta && held.meta)
+    self.modifiers.shortcut_keys_up(&self.record_shortcut)
   }
 
   pub fn handle_event(&mut self, event: KeyEvent, now: Instant) {
@@ -571,10 +656,15 @@ unsafe extern "C" fn macos_event_tap_callback(
       let next = modifier_state_from_flags(CGEventGetFlags(event));
       let pid = Some(CGEventGetIntegerValueField(event, KCG_EVENT_SOURCE_UNIX_PROCESS_ID));
       if let Ok(mut current) = context.modifiers.lock() {
-        emit_modifier_transition(&context.tx, current.ctrl, next.ctrl, Key::ControlLeft, pid);
-        emit_modifier_transition(&context.tx, current.shift, next.shift, Key::ShiftLeft, pid);
-        emit_modifier_transition(&context.tx, current.alt, next.alt, Key::Alt, pid);
-        emit_modifier_transition(&context.tx, current.meta, next.meta, Key::MetaLeft, pid);
+        for (previous, next, left, right) in [
+          (current.ctrl, next.ctrl, Key::ControlLeft, Key::ControlRight),
+          (current.shift, next.shift, Key::ShiftLeft, Key::ShiftRight),
+          (current.alt, next.alt, Key::Alt, Key::AltGr),
+          (current.meta, next.meta, Key::MetaLeft, Key::MetaRight),
+        ] {
+          emit_modifier_transition(&context.tx, previous.left, next.left, left, pid);
+          emit_modifier_transition(&context.tx, previous.right, next.right, right, pid);
+        }
         *current = next;
       }
     }
@@ -609,10 +699,26 @@ fn emit_modifier_transition(tx: &Sender<HotkeyMsg>, previous: bool, next: bool, 
 #[cfg(target_os = "macos")]
 fn modifier_state_from_flags(flags: u64) -> ModifierState {
   ModifierState {
-    ctrl: flags & KCG_EVENT_FLAG_MASK_CONTROL != 0,
-    shift: flags & KCG_EVENT_FLAG_MASK_SHIFT != 0,
-    alt: flags & KCG_EVENT_FLAG_MASK_ALTERNATE != 0,
-    meta: flags & KCG_EVENT_FLAG_MASK_COMMAND != 0,
+    ctrl: sides_from_flags(flags, KCG_EVENT_FLAG_MASK_CONTROL, NX_DEVICE_LCTL, NX_DEVICE_RCTL),
+    shift: sides_from_flags(flags, KCG_EVENT_FLAG_MASK_SHIFT, NX_DEVICE_LSHIFT, NX_DEVICE_RSHIFT),
+    alt: sides_from_flags(flags, KCG_EVENT_FLAG_MASK_ALTERNATE, NX_DEVICE_LALT, NX_DEVICE_RALT),
+    meta: sides_from_flags(flags, KCG_EVENT_FLAG_MASK_COMMAND, NX_DEVICE_LCMD, NX_DEVICE_RCMD),
+  }
+}
+
+// The device-dependent bits say which physical key is down. An event posted by
+// software may carry only the generic flag; count that as the left key, which
+// keeps two-modifier shortcuts working and never fires a right-only one.
+#[cfg(target_os = "macos")]
+fn sides_from_flags(flags: u64, generic: u64, left: u64, right: u64) -> Sides {
+  if flags & generic == 0 {
+    return Sides::default();
+  }
+  let sides = Sides { left: flags & left != 0, right: flags & right != 0 };
+  if sides.any() {
+    sides
+  } else {
+    Sides { left: true, right: false }
   }
 }
 
@@ -649,6 +755,24 @@ const KCG_EVENT_FLAG_MASK_CONTROL: u64 = 1 << 18;
 const KCG_EVENT_FLAG_MASK_ALTERNATE: u64 = 1 << 19;
 #[cfg(target_os = "macos")]
 const KCG_EVENT_FLAG_MASK_COMMAND: u64 = 1 << 20;
+// Device-dependent modifier bits (IOKit's NX_DEVICE*KEYMASK), set alongside
+// the generic flags above.
+#[cfg(target_os = "macos")]
+const NX_DEVICE_LCTL: u64 = 0x0000_0001;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_LSHIFT: u64 = 0x0000_0002;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_RSHIFT: u64 = 0x0000_0004;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_LCMD: u64 = 0x0000_0008;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_RCMD: u64 = 0x0000_0010;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_LALT: u64 = 0x0000_0020;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_RALT: u64 = 0x0000_0040;
+#[cfg(target_os = "macos")]
+const NX_DEVICE_RCTL: u64 = 0x0000_2000;
 #[cfg(target_os = "macos")]
 const KVK_ESCAPE: i64 = 53;
 #[cfg(target_os = "macos")]
@@ -690,6 +814,12 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
     .expect("default record shortcut must parse");
   let mut state = HotkeyState::new(record_shortcut);
   let mut trace = HoldTrace::default();
+  // Probe mode: the tester is open. A gesture that starts while the main
+  // window has focus belongs to the tester from start to finish; one already
+  // recording when the tester opened stays a real dictation.
+  let mut probe = false;
+  let mut probe_session = false;
+  let mut probe_last: Option<ProbeEvent> = None;
 
   loop {
     let timeout = state
@@ -708,22 +838,53 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
       Ok(HotkeyMsg::KeyEvent(event, source_pid)) => {
         let was_held = state.combo_held();
         state.handle_event(event, now);
-        if let Some(line) = trace.observe_key(&state, was_held, event, source_pid, now) {
+        if probe_session {
+          // The tester's gestures are not dictations; keep them out of the trace.
+        } else if let Some(line) = trace.observe_key(&state, was_held, event, source_pid, now) {
           log::info!(target: "typealoud_lifecycle", "{line}");
+        }
+        if probe && (probe_session || main_window_focused(&app)) {
+          let keys = probe_keys(&state);
+          if probe_last.as_ref() != Some(&keys) {
+            let _ = app.emit("hotkey-probe", &keys);
+            probe_last = Some(keys);
+          }
         }
       }
       Ok(HotkeyMsg::UpdateShortcut(shortcut)) => {
         if let Some(parsed) = Shortcut::parse(&shortcut) {
           state.record_shortcut = parsed;
         }
+        probe_last = None;
       }
       Ok(HotkeyMsg::ReleaseLock(lock_id)) => state.release_lock(lock_id),
+      Ok(HotkeyMsg::SetProbe(enabled)) => {
+        log::info!("hotkey: probe {}", if enabled { "on" } else { "off" });
+        probe = enabled;
+        probe_last = None;
+        if !enabled && probe_session {
+          // Nothing reached the recording window, so nothing has to be undone there.
+          probe_session = false;
+          state.reset_recording();
+        }
+      }
       Err(mpsc::RecvTimeoutError::Timeout) => {}
       Err(mpsc::RecvTimeoutError::Disconnected) => return,
     }
 
     state.handle_tick(now);
     for action in state.drain_actions() {
+      if action == Action::Start {
+        probe_session = probe && main_window_focused(&app);
+      }
+      if probe_session {
+        let event = ProbeEvent { action: Some(probe_action_label(action)), ..probe_keys(&state) };
+        let _ = app.emit("hotkey-probe", &event);
+        if matches!(action, Action::Stop | Action::Cancel | Action::Tap) {
+          probe_session = false;
+        }
+        continue;
+      }
       if let Some(line) = trace.observe_action(action, now) {
         log::info!(target: "typealoud_lifecycle", "{line}");
       }
@@ -1256,11 +1417,83 @@ mod tests {
   #[test]
   fn parse_shortcut_labels() {
     let shortcut = Shortcut::parse(" ctrl + shift ").unwrap();
-    assert!(shortcut.ctrl);
-    assert!(shortcut.shift);
-    assert!(!shortcut.alt);
-    assert!(!shortcut.meta);
+    assert_eq!(shortcut.ctrl, KeyUse::Either);
+    assert_eq!(shortcut.shift, KeyUse::Either);
+    assert_eq!(shortcut.alt, KeyUse::Unused);
+    assert_eq!(shortcut.meta, KeyUse::Unused);
     assert!(Shortcut::parse("Ctrl").is_none());
+  }
+
+  #[test]
+  fn a_single_right_hand_modifier_is_a_shortcut_but_not_a_left_or_shift() {
+    assert_eq!(Shortcut::parse("RightAlt").unwrap().alt, KeyUse::RightOnly);
+    assert_eq!(Shortcut::parse("right option").map(|s| s.canonical()), None);
+    assert_eq!(Shortcut::parse("RightOption").unwrap().canonical(), "RightAlt");
+    assert_eq!(Shortcut::parse("RightCmd").unwrap().canonical(), "RightMeta");
+    assert_eq!(Shortcut::parse("RightCtrl").unwrap().canonical(), "RightCtrl");
+    assert!(Shortcut::parse("Alt").is_none());
+    assert!(Shortcut::parse("RightShift").is_none());
+    assert!(Shortcut::parse("Alt+RightAlt").is_none());
+    assert_eq!(Shortcut::parse("Win+Ctrl").unwrap().canonical(), "Ctrl+Meta");
+  }
+
+  #[test]
+  fn a_right_only_shortcut_ignores_the_left_key() {
+    let shortcut = Shortcut::parse("RightAlt").unwrap();
+    let mut modifiers = ModifierState::default();
+    modifiers.press(Key::Alt);
+    assert!(!modifiers.matches(&shortcut));
+    assert!(modifiers.shortcut_keys_up(&shortcut));
+    modifiers.release(Key::Alt);
+    modifiers.press(Key::AltGr);
+    assert!(modifiers.matches(&shortcut));
+    // Both Option keys down is not the right Option alone.
+    modifiers.press(Key::Alt);
+    assert!(!modifiers.matches(&shortcut));
+  }
+
+  #[cfg(target_os = "macos")]
+  #[test]
+  fn mac_flags_tell_the_option_keys_apart_and_bare_flags_count_as_left() {
+    let right_option = modifier_state_from_flags(KCG_EVENT_FLAG_MASK_ALTERNATE | NX_DEVICE_RALT);
+    assert_eq!(right_option.alt, Sides { left: false, right: true });
+    assert!(right_option.matches(&Shortcut::parse("RightAlt").unwrap()));
+    // A synthetic event with only the generic flags (no device bits).
+    let posted = modifier_state_from_flags(KCG_EVENT_FLAG_MASK_CONTROL | KCG_EVENT_FLAG_MASK_SHIFT);
+    assert!(posted.matches(&Shortcut::parse("Ctrl+Shift").unwrap()));
+    assert!(!modifier_state_from_flags(KCG_EVENT_FLAG_MASK_ALTERNATE).matches(&Shortcut::parse("RightAlt").unwrap()));
+    // A stale device bit without its generic flag means the key is up.
+    assert_eq!(modifier_state_from_flags(NX_DEVICE_RCMD).meta, Sides::default());
+  }
+
+  #[test]
+  fn an_either_side_shortcut_accepts_the_right_keys_too() {
+    let shortcut = Shortcut::parse("Ctrl+Meta").unwrap();
+    let mut modifiers = ModifierState::default();
+    modifiers.press(Key::ControlRight);
+    modifiers.press(Key::MetaLeft);
+    assert!(modifiers.matches(&shortcut));
+  }
+
+  #[test]
+  fn the_right_option_key_records_taps_and_locks_like_a_combo() {
+    let mut state = HotkeyState::new(Shortcut::parse("RightAlt").unwrap());
+    let start = Instant::now();
+    state.handle_event(KeyEvent::Press(Key::Alt), start);
+    assert!(state.drain_actions().is_empty());
+    state.handle_event(KeyEvent::Release(Key::Alt), start + ms(50));
+
+    state.handle_event(KeyEvent::Press(Key::AltGr), start + ms(100));
+    assert_eq!(state.drain_actions(), vec![Action::Start]);
+    // Option+letter is a typed character, not a dictation.
+    state.handle_event(KeyEvent::NonModifierPress, start + ms(180));
+    assert_eq!(state.drain_actions(), vec![Action::Cancel]);
+    state.handle_event(KeyEvent::Release(Key::AltGr), start + ms(250));
+
+    state.handle_event(KeyEvent::Press(Key::AltGr), start + ms(1000));
+    state.handle_event(KeyEvent::Release(Key::AltGr), start + ms(1080));
+    state.handle_event(KeyEvent::Press(Key::AltGr), start + ms(1200));
+    assert_eq!(state.drain_actions(), vec![Action::Start, Action::Lock(1)]);
   }
 
   #[test]

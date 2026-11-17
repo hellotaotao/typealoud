@@ -57,6 +57,8 @@ const engineCloudDrafts = new Map();
 let expandedEngineProvider = null;
 let pageEventsBound = false;
 let shortcutSyncBound = false;
+let shortcutPicker = null;
+let shortcutAccessibilityMissing = false;
 let themeSyncBound = false;
 let pendingAccessibilityRecheck = false;
 let accessibilityRecheckTimer = null;
@@ -1586,6 +1588,7 @@ function handleThemeChange(event) {
 function handleUiLanguageChange(event) {
   setLanguage(event.target.value);
   applyI18n(document);
+  shortcutPicker?.refresh();
   if (currentDiagnosticLog) {
     renderDiagnosticLog(currentDiagnosticLog);
   }
@@ -1785,6 +1788,9 @@ function renderPermissionSummary() {
 }
 
 function renderAccessibilityStatus(result) {
+  // A definite "no" only: an unreadable status must not claim the key is deaf.
+  shortcutAccessibilityMissing = !!result && !result.granted && result.status !== "not_required";
+  shortcutPicker?.setUnavailable(shortcutAccessibilityMissing ? "shortcut.test.axNeeded" : "");
   const statusElement = document.getElementById("accessibilityStatus");
   if (!statusElement) {
     return;
@@ -1889,9 +1895,42 @@ function setupShortcutSync() {
       return;
     }
 
-    const shortcutSelect = document.getElementById("shortcutSelect");
-    setSelectValue(shortcutSelect, payload.recordShortcut, "Ctrl+Shift");
+    currentSettings.shortcut = payload.recordShortcut;
+    renderShortcutPicker();
   });
+  // The main window turns the tester on while this page is showing.
+  ipc.on("hotkey-probe", (_event, payload) => {
+    if (!document.getElementById("settings-page")?.classList.contains("active")) return;
+    if (!document.getElementById("onboarding")?.hidden) return;
+    shortcutPicker?.handleProbe(payload);
+  });
+}
+
+// The shortcut list and its tester; a choice is saved on its own, outside the
+// full-form save.
+function renderShortcutPicker() {
+  const host = document.getElementById("shortcutPicker");
+  if (!host || !window.TypeAloudShortcuts) return;
+  if (!shortcutPicker) {
+    shortcutPicker = window.TypeAloudShortcuts.createPicker({
+      os: currentSettings.os,
+      translate,
+      onSelect: async (value) => {
+        try {
+          const saved = await ipc.invoke("set-record-shortcut", value);
+          currentSettings.shortcut = saved;
+          showSaveStatus("ok", translate("settings.saved"));
+          return saved;
+        } catch (error) {
+          showSaveStatus("error", translate("settings.saveError"));
+          throw error;
+        }
+      },
+    });
+    host.replaceChildren(shortcutPicker.element);
+  }
+  shortcutPicker.setValue(currentSettings.shortcut || "Ctrl+Shift");
+  shortcutPicker.setUnavailable(shortcutAccessibilityMissing ? "shortcut.test.axNeeded" : "");
 }
 
 function setupThemeSync() {
@@ -2132,7 +2171,6 @@ async function loadSettings() {
     const provider = currentSettings.provider || "groq";
     const providerChoice = providerForSettings(currentSettings);
     const providerSelect = document.getElementById("providerSelect");
-    const shortcutSelect = document.getElementById("shortcutSelect");
     const uiLanguageSelect = document.getElementById("uiLanguageSelect");
     const themeSelect = document.getElementById("themeSelect");
     const languageSelect = document.getElementById("languageSelect");
@@ -2173,7 +2211,7 @@ async function loadSettings() {
       apiKeyOpenAI.value = apiKeys.apiKeyOpenAI || "";
     }
 
-    setSelectValue(shortcutSelect, currentSettings.shortcut || "Ctrl+Shift", "Ctrl+Shift");
+    renderShortcutPicker();
     setSelectValue(uiLanguageSelect, currentSettings.uiLanguage || "auto", "auto");
     setSelectValue(themeSelect, normalizeThemePref(currentSettings.uiTheme), "elegant");
     setSelectValue(languageSelect, currentSettings.language || "auto", "auto");
@@ -2413,7 +2451,7 @@ async function persistSettings(intent = null) {
     const settings = {
       apiKeyGroq: document.getElementById("apiKeyGroq")?.value || "",
       apiKeyOpenAI: document.getElementById("apiKeyOpenAI")?.value || "",
-      shortcut: document.getElementById("shortcutSelect")?.value || "Ctrl+Shift",
+      shortcut: currentSettings.shortcut || "Ctrl+Shift",
       language: document.getElementById("languageSelect")?.value || "auto",
       uiLanguage: document.getElementById("uiLanguageSelect")?.value || "auto",
       uiTheme: normalizeThemePref(themeSelect ? themeSelect.value : "elegant"),

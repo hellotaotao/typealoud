@@ -58,7 +58,7 @@ One row per day on which the app ran, sent the following day:
 
 In addition, a few one-off events describe the first run, each sent at most once per install:
 the onboarding step reached (`onboarding_step`: welcome, privacy, engine, microphone, accessibility,
-practice), finishing onboarding (`onboarding_completed`), a local model download finishing, failing
+shortcut, practice), finishing onboarding (`onboarding_completed`), a local model download finishing, failing
 or being cancelled (`model_download`, with the model name), and whether the very first dictation
 worked (`first_dictation`).
 

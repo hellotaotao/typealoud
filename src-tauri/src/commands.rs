@@ -645,6 +645,38 @@ pub fn set_onboarding_completed() -> Result<bool, String> {
   Ok(true)
 }
 
+// The shortcut picker (onboarding and Settings) saves just this field, so it
+// never has to carry the rest of the Settings form. Returns the stored spelling.
+#[tauri::command]
+pub fn set_record_shortcut(
+  app: AppHandle,
+  shortcut: String,
+  state: State<'_, AppState>,
+) -> Result<String, String> {
+  let parsed = crate::hotkey::Shortcut::parse(&shortcut).ok_or("INVALID_SHORTCUT")?;
+  let canonical = parsed.canonical();
+  log::info!("command:set_record_shortcut shortcut={canonical}");
+  let config = settings::mutate_config(|config| {
+    config.shortcut = canonical.clone();
+    Ok(())
+  })
+  .map_err(stringify_error)?;
+  if let Some(handle) = state.hotkey.lock().unwrap().as_ref() {
+    handle.update_shortcut(config.shortcut.clone());
+  }
+  broadcast_settings_updates(&app, &config).map_err(stringify_error)?;
+  Ok(canonical)
+}
+
+// While the shortcut tester is open, presses made in the main window light up
+// its keycaps (the `hotkey-probe` event) instead of starting a dictation.
+#[tauri::command]
+pub fn set_hotkey_probe(enabled: bool, state: State<'_, AppState>) {
+  if let Some(handle) = state.hotkey.lock().unwrap().as_ref() {
+    handle.set_probe(enabled);
+  }
+}
+
 // The switch on the onboarding privacy page. Settings saves the same field
 // through save_settings.
 #[tauri::command]

@@ -13,7 +13,7 @@ function extract(name) {
 }
 
 test("named onboarding DOM follows approved page order and has scroll-safe content", () => {
-  assert.deepEqual([...html.matchAll(/data-ob-step="([^"]+)"/g)].map(match=>match[1]),["welcome","privacy","engine","microphone","accessibility","practice"]);
+  assert.deepEqual([...html.matchAll(/data-ob-step="([^"]+)"/g)].map(match=>match[1]),["welcome","privacy","engine","microphone","accessibility","shortcut","practice"]);
   assert.match(css,/\[hidden\]\s*\{\s*display:\s*none\s*!important/);
   assert.match(css,/\.onboard-page\s*\{[^}]*overflow-y:\s*auto/s);
   assert.match(css,/\.onboard-page-content\s*\{[^}]*margin-block:\s*auto/s);
@@ -44,6 +44,7 @@ test("opening Settings pauses the wizard and resume preserves its named step", a
     document:{getElementById:()=>overlay,querySelectorAll:()=>[]},
     window:{clearTimeout(){}},obCurrent:"microphone",obAdvanceTimer:123,obPaused:false,
     onboardingVisible:()=>!overlay.hidden,renderObResume(){},renderOnboarding(){},obRefreshMicState(){},obRefreshLocalStatus(){},refreshReadiness(){},
+    syncHotkeyProbe(){},
   });
   vm.runInContext(extract("pauseOnboarding")+"\n"+extract("resumeOnboarding"),context);
   context.pauseOnboarding();
@@ -260,4 +261,24 @@ test("compact practice summary reflects verified state and applicable platform s
   context.renderObReadySummary(steps,false);
   assert.equal(summary.hidden,true);
   assert.equal(summary.children.length,0);
+});
+
+test("the shortcut step gates Next on a detected press and the tester runs only on that step or Settings", async () => {
+  assert.match(extract("obStepSatisfied"),/step === "shortcut"\) return !!obShortcutPicker\?\.passed/);
+  assert.match(extract("renderObFooter"),/"accessibility", "shortcut"\]/);
+  const invoked=[];
+  const pages={"settings-page":{classList:{contains:()=>false}}};
+  const context=vm.createContext({
+    document:{getElementById:id=>pages[id]},hotkeyProbeOn:false,obCurrent:"shortcut",visible:true,
+    onboardingVisible:()=>context.visible,ipc:{invoke:async(...args)=>invoked.push(args)},console,Promise,
+  });
+  vm.runInContext(extract("syncHotkeyProbe").replace("let hotkeyProbeOn = false;",""),context);
+  context.syncHotkeyProbe();
+  context.syncHotkeyProbe();
+  context.obCurrent="practice";
+  context.syncHotkeyProbe();
+  context.visible=false;
+  pages["settings-page"].classList.contains=()=>true;
+  context.syncHotkeyProbe();
+  assert.deepEqual(invoked,[["set-hotkey-probe",true],["set-hotkey-probe",false],["set-hotkey-probe",true]]);
 });

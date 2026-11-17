@@ -668,15 +668,10 @@ class VoiceInputPrompt {
     if (typeof shortcut !== "string") {
       return "";
     }
+    // Platform words ("Option" on macOS, "Win" on Windows, "Right Option" for a
+    // right-hand key), from the backend `os` field once settings have loaded.
     // Non-breaking spaces: a wrapped hint must never split "Ctrl + / Shift".
-    const label = shortcut.replace(/\+/g, " + ");
-    // macOS labels Alt as Option; Windows/Linux keep Alt. Use the backend `os`
-    // field (set in syncShortcutFromSettings), falling back to navigator only
-    // before settings have loaded.
-    const isMac = this.osName
-      ? this.osName === "macos"
-      : /Mac/i.test(window.navigator?.platform || "");
-    return isMac ? label.replace(/Alt/g, "Option") : label;
+    return window.TypeAloudShortcuts.label(shortcut, this.osName, t).replace(/ /g, "\u00a0");
   }
 
   updateShortcutHint(recordShortcut) {
