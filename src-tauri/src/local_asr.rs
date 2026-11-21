@@ -426,7 +426,59 @@ static GPU_DISABLED: AtomicBool = AtomicBool::new(false);
 
 /// Devices the installed GPU runtime reports, cached per process. Cleared when
 /// the pack is installed or removed.
-static GPU_DEVICES: Mutex<Option<Vec<String>>> = Mutex::new(None);
+static GPU_DEVICES: Mutex<Option<Vec<GpuDevice>>> = Mutex::new(None);
+
+/// The GPU the user picked (`AppConfig::local_gpu_device`), "" for none.
+static GPU_DEVICE_CHOICE: Mutex<String> = Mutex::new(String::new());
+
+/// One device as `--list-devices` reports it: llama.cpp's name for it
+/// ("Vulkan1"), which `--device` takes, and its description for the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuDevice {
+  pub id: String,
+  pub name: String,
+}
+
+/// Apply a settings change. Like the compute preference, a real change retires
+/// the parked worker, which was started on the previous device.
+pub fn set_gpu_device(value: &str) {
+  let next = value.trim().to_string();
+  let previous = std::mem::replace(&mut *GPU_DEVICE_CHOICE.lock().unwrap(), next.clone());
+  if previous != next {
+    log::info!("local-asr: GPU device {:?} -> {:?}", previous, next);
+    shutdown_resident_worker();
+  }
+}
+
+/// Which device a GPU process is pinned to, if any. With one device there is
+/// nothing to choose and llama.cpp's own default stands. With several, the
+/// language model would otherwise spread its layers over all of them while the
+/// audio encoder took the first, so a process always gets exactly one: the
+/// chosen device while it is still listed, else the first.
+fn pinned_gpu_device(devices: &[GpuDevice], choice: &str) -> Option<String> {
+  if devices.len() < 2 {
+    return None;
+  }
+  devices
+    .iter()
+    .find(|device| device.id == choice)
+    .or_else(|| devices.first())
+    .map(|device| device.id.clone())
+}
+
+/// Pin a GPU process to one device. `--device` covers the language model; the
+/// audio encoder (mtmd's clip) ignores it and reads `MTMD_BACKEND_DEVICE`
+/// instead (llama.cpp b9960 tools/mtmd/clip.cpp), so both are set.
+async fn pin_gpu_device(command: &mut tokio::process::Command, runtime: Runtime) {
+  if runtime != Runtime::Gpu {
+    return;
+  }
+  let choice = GPU_DEVICE_CHOICE.lock().unwrap().clone();
+  if let Some(device) = pinned_gpu_device(&gpu_devices().await, &choice) {
+    command.arg("--device").arg(&device).env("MTMD_BACKEND_DEVICE", &device);
+  }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ComputePreference {
@@ -523,10 +575,10 @@ fn selected_runtime(base: &Path) -> Runtime {
 }
 
 /// Parses `--list-devices` output, whose device lines look like
-/// `  Vulkan0: Intel(R) HD Graphics 630 (12243 MiB, 11475 MiB free)` — take the
-/// name between the device id and the trailing memory figures. The
+/// `  Vulkan0: Intel(R) HD Graphics 630 (12243 MiB, 11475 MiB free)` — the id
+/// before the colon, the name between it and the trailing memory figures. The
 /// `Available devices:` header has no `": "` separator and drops out.
-fn parse_device_list(stdout: &str) -> Vec<String> {
+fn parse_device_list(stdout: &str) -> Vec<GpuDevice> {
   stdout
     .lines()
     .filter_map(|line| {
@@ -536,7 +588,7 @@ fn parse_device_list(stdout: &str) -> Vec<String> {
       }
       let name = rest.rsplit_once(" (").map_or(rest, |(name, _)| name);
       let name = name.trim();
-      (!name.is_empty()).then(|| name.to_string())
+      (!name.is_empty()).then(|| GpuDevice { id: id.to_string(), name: name.to_string() })
     })
     .collect()
 }
@@ -544,7 +596,7 @@ fn parse_device_list(stdout: &str) -> Vec<String> {
 /// Ask the installed GPU runtime what it can see. An installed pack with an
 /// empty list means the machine has no usable Vulkan device (no driver, or a
 /// GPU too old) — the Settings panel says so instead of silently running CPU.
-pub async fn gpu_devices() -> Vec<String> {
+pub async fn gpu_devices() -> Vec<GpuDevice> {
   if let Some(cached) = GPU_DEVICES.lock().unwrap().clone() {
     return cached;
   }
@@ -569,7 +621,11 @@ pub async fn gpu_devices() -> Vec<String> {
   };
   log::info!(
     "local-asr: GPU devices: {}",
-    if devices.is_empty() { "none".to_string() } else { devices.join(", ") }
+    if devices.is_empty() {
+      "none".to_string()
+    } else {
+      devices.iter().map(|device| format!("{}={}", device.id, device.name)).collect::<Vec<_>>().join(", ")
+    }
   );
   *GPU_DEVICES.lock().unwrap() = Some(devices.clone());
   devices
@@ -586,7 +642,10 @@ pub struct GpuRuntimeStatus {
   pub downloaded_bytes: u64,
   /// What the installed runtime can see. Empty while `state == "ready"` means
   /// the pack works but the machine has no usable device.
-  pub devices: Vec<String>,
+  pub devices: Vec<GpuDevice>,
+  /// The device a GPU process runs on: the chosen one, or the first. Empty
+  /// when nothing is listed.
+  pub device: String,
   /// Whether a decode started right now would run on the GPU.
   pub active: bool,
   /// Whether a GPU start already failed this session and CPU took over.
@@ -601,6 +660,7 @@ pub async fn gpu_runtime_status(downloading: bool) -> GpuRuntimeStatus {
       size_bytes: 0,
       downloaded_bytes: 0,
       devices: Vec::new(),
+      device: String::new(),
       active: false,
       fell_back: false,
     };
@@ -623,12 +683,19 @@ pub async fn gpu_runtime_status(downloading: bool) -> GpuRuntimeStatus {
   } else {
     "absent"
   };
+  let devices = if ready { gpu_devices().await } else { Vec::new() };
   GpuRuntimeStatus {
     supported: true,
     state: state.into(),
     size_bytes: asset.size,
     downloaded_bytes: downloaded,
-    devices: if ready { gpu_devices().await } else { Vec::new() },
+    device: {
+      let choice = GPU_DEVICE_CHOICE.lock().unwrap().clone();
+      pinned_gpu_device(&devices, &choice)
+        .or_else(|| devices.first().map(|device| device.id.clone()))
+        .unwrap_or_default()
+    },
+    devices,
     active: dir.as_deref().map(|dir| selected_runtime(dir) == Runtime::Gpu).unwrap_or(false),
     fell_back: GPU_DISABLED.load(Ordering::Relaxed),
   }
@@ -962,7 +1029,9 @@ impl ResidentWorker {
     runtime: Runtime,
     model: &'static str,
   ) -> Result<Self> {
-    let mut child = local_asr_command(runtime_cli_path(base, runtime))
+    let mut command = local_asr_command(runtime_cli_path(base, runtime));
+    pin_gpu_device(&mut command, runtime).await;
+    let mut child = command
       .arg("-m").arg(base.join(qwen_assets(model)[0].rel_path))
       .arg("--mmproj").arg(base.join(qwen_assets(model)[1].rel_path))
       .arg("--no-warmup")
@@ -1692,7 +1761,9 @@ async fn transcribe_wav_inner_for(
   let started = std::time::Instant::now();
   progress.enter("one-shot-decode");
   let one_shot_runtime = selected_runtime(&base);
-  let mut child = local_asr_command(runtime_cli_path(&base, one_shot_runtime))
+  let mut command = local_asr_command(runtime_cli_path(&base, one_shot_runtime));
+  pin_gpu_device(&mut command, one_shot_runtime).await;
+  let mut child = command
     .arg("-m").arg(base.join(qwen_assets(model)[0].rel_path))
     .arg("--mmproj").arg(base.join(qwen_assets(model)[1].rel_path))
     .arg("--audio").arg(&tmp_path)
@@ -2376,7 +2447,23 @@ mod tests {
     let listed = parse_device_list(
       "Available devices:\n  Vulkan0: Intel(R) HD Graphics 630 (12243 MiB, 11475 MiB free)\n  Vulkan1: NVIDIA GeForce RTX 4070 (12282 MiB, 11000 MiB free)\n",
     );
-    assert_eq!(listed, vec!["Intel(R) HD Graphics 630", "NVIDIA GeForce RTX 4070"]);
+    let names: Vec<_> = listed.iter().map(|device| device.name.as_str()).collect();
+    let ids: Vec<_> = listed.iter().map(|device| device.id.as_str()).collect();
+    assert_eq!(names, ["Intel(R) HD Graphics 630", "NVIDIA GeForce RTX 4070"]);
+    assert_eq!(ids, ["Vulkan0", "Vulkan1"]);
+  }
+
+  #[test]
+  fn a_gpu_process_is_pinned_to_one_device_only_when_there_are_several() {
+    let device = |id: &str| GpuDevice { id: id.into(), name: format!("GPU {id}") };
+    // One device: llama.cpp's default already means that one.
+    assert_eq!(pinned_gpu_device(&[device("Vulkan0")], "Vulkan0"), None);
+    assert_eq!(pinned_gpu_device(&[], ""), None);
+    let two = [device("Vulkan0"), device("Vulkan1")];
+    assert_eq!(pinned_gpu_device(&two, "Vulkan1").as_deref(), Some("Vulkan1"));
+    // No choice yet, or a device that is no longer listed: the first.
+    assert_eq!(pinned_gpu_device(&two, "").as_deref(), Some("Vulkan0"));
+    assert_eq!(pinned_gpu_device(&two, "Vulkan5").as_deref(), Some("Vulkan0"));
   }
 
   #[test]

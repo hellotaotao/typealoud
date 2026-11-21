@@ -1068,6 +1068,7 @@ function renderLocalComputePanel(status) {
     return;
   }
   gpuRuntimeState = status.state;
+  renderGpuDeviceSelect(status, select.value === "gpu");
 
   const pct = status.totalBytes ? status.downloadedBytes / status.totalBytes : 0;
   progressEl.value = Math.round(pct * 1000);
@@ -1109,9 +1110,47 @@ function renderLocalComputePanel(status) {
   }
   // An installed pack that lists no device is the "no driver / unusable GPU"
   // case — say so, because the transcription silently runs on the CPU.
-  statusEl.textContent = status.devices?.length
-    ? translate("settings.localCompute.statusReady", { device: status.devices[0] })
+  const devices = status.devices || [];
+  const inUse = devices.find((device) => device.id === status.device) || devices[0];
+  statusEl.textContent = inUse
+    ? translate("settings.localCompute.statusReady", { device: inUse.name })
     : translate("settings.localCompute.statusNoDevice");
+}
+
+// A machine with two GPUs (say AMD and NVIDIA) gets a second select to pick
+// one; with a single GPU there is nothing to choose and it stays hidden.
+function renderGpuDeviceSelect(status, gpuSelected) {
+  const deviceSelect = document.getElementById("localGpuDeviceSelect");
+  if (!deviceSelect) return;
+  const devices = status.devices || [];
+  const show = gpuSelected && status.state === "ready" && devices.length > 1;
+  deviceSelect.classList.toggle("hidden", !show);
+  if (!show) return;
+  // Two identical cards share a name; their llama.cpp id tells them apart.
+  const names = devices.map((device) => device.name);
+  deviceSelect.replaceChildren(...devices.map((device) => {
+    const option = document.createElement("option");
+    option.value = device.id;
+    option.textContent = names.filter((name) => name === device.name).length > 1
+      ? `${device.name} (${device.id})`
+      : device.name;
+    return option;
+  }));
+  deviceSelect.value = status.device || devices[0].id;
+}
+
+async function handleGpuDeviceChange(event) {
+  // Saved on its own: keep the settings form's autosave out of it.
+  event.stopPropagation();
+  const device = event.target.value;
+  try {
+    currentSettings.localGpuDevice = await ipc.invoke("set-gpu-device", device);
+    showSaveStatus("ok", translate("settings.saved"));
+  } catch (error) {
+    console.error("Failed to choose the GPU:", error);
+    showSaveStatus("error", translate("settings.saveError"));
+  }
+  await refreshGpuRuntimeStatus();
 }
 
 async function refreshGpuRuntimeStatus() {
@@ -1699,6 +1738,9 @@ function bindEventHandlers() {
   document
     .getElementById("localComputeSelect")
     ?.addEventListener("change", handleLocalComputeChange);
+  document
+    .getElementById("localGpuDeviceSelect")
+    ?.addEventListener("change", (event) => void handleGpuDeviceChange(event));
   document.getElementById("localModelDeleteBtn")?.addEventListener("click", () => {
     void handleLocalModelDelete();
   });

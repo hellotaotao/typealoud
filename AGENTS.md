@@ -138,7 +138,9 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
     rules still
     apply to its final text).
   - GPU (Windows) is a separate Vulkan pack and `auto` resolves to CPU. A failing GPU worker
-    disables GPU for the process and the same recording retries on CPU.
+    disables GPU for the process and the same recording retries on CPU. With several GPUs a
+    process is pinned to one, through both `--device` and `MTMD_BACKEND_DEVICE` (the audio encoder
+    ignores `--device`): the one picked in Settings, else the first.
 - `nemotron_asr.rs` — Nemotron 3.5 streaming engine (NVIDIA `nemo-speech` sidecar), available only
   on macOS arm64 and Windows x64 (`supported()`). Its batch and live requests carry the saved
   `language` (empty means `auto`). Settings enables the language picker for Nemotron and cloud

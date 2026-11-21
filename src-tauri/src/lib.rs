@@ -299,6 +299,7 @@ pub fn run() {
       commands::set_record_shortcut,
       commands::set_hotkey_probe,
       commands::dismiss_shortcut_prompt,
+      commands::set_gpu_device,
       commands::record_onboarding_step,
       commands::get_usage_preview,
       commands::save_onboarding_api_key,

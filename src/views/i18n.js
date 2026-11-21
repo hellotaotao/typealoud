@@ -588,6 +588,7 @@
           auto: "Automatic (currently CPU)",
           cpu: "CPU",
           gpu: "GPU (Vulkan)",
+          deviceTitle: "Choose which GPU to use",
           statusCpu:
             "Running on the CPU. A discrete GPU is usually faster; with Intel HD/UHD integrated graphics, stay on the CPU.",
           statusAbsent: "Using the GPU needs a {total} GPU acceleration download.",
@@ -1263,6 +1264,7 @@
           auto: "自动（当前为 CPU）",
           cpu: "CPU",
           gpu: "显卡（Vulkan）",
+          deviceTitle: "选择用哪块显卡",
           statusCpu:
             "当前用 CPU 运行。有独立显卡的话通常更快；如果是 Intel HD／UHD 集成显卡，建议继续用 CPU。",
           statusAbsent: "使用显卡前，需要下载 {total} 的显卡加速组件。",

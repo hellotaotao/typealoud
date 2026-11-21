@@ -587,6 +587,8 @@ pub fn save_settings(
     config.qwen_model = existing.qwen_model.clone();
     // Hand-set development flag with no form field.
     config.debug_save_audio = existing.debug_save_audio;
+    // Saved on its own by set_gpu_device.
+    config.local_gpu_device = existing.local_gpu_device.clone();
     config.shortcut = settings::normalize_record_shortcut(&config.shortcut);
     config.nemotron_latency_ms =
       settings::normalize_nemotron_latency_ms(config.nemotron_latency_ms);
@@ -802,6 +804,7 @@ pub fn apply_provider_change(app: &AppHandle, provider: &str) -> Result<(), Stri
 
 pub(crate) fn sync_local_runtime(app: &AppHandle, config: &AppConfig) {
   crate::local_asr::set_compute_preference(&config.local_compute);
+  crate::local_asr::set_gpu_device(&config.local_gpu_device);
   let selected = crate::local_asr::normalize_local_model_id(&config.model);
   crate::local_asr::sync_selected_model(selected);
   if config.provider == crate::local_asr::LOCAL_PROVIDER
@@ -1897,6 +1900,22 @@ pub fn cancel_gpu_runtime_download(state: State<'_, AppState>) -> Result<bool, S
     return Ok(true);
   }
   Ok(false)
+}
+
+/// Pick which GPU the local engine uses on a machine with more than one (a
+/// device name from `get_gpu_runtime_status`). Saved on its own, outside the
+/// settings form, and applied to the next worker.
+#[tauri::command]
+pub fn set_gpu_device(device: String) -> Result<String, String> {
+  let device = device.trim().to_string();
+  log::info!("command:set_gpu_device device={device}");
+  settings::mutate_config(|config| {
+    config.local_gpu_device = device.clone();
+    Ok(())
+  })
+  .map_err(stringify_error)?;
+  crate::local_asr::set_gpu_device(&device);
+  Ok(device)
 }
 
 /// Remove the GPU pack and fall back to CPU. The models and the required CPU

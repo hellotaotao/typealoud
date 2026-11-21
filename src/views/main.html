@@ -626,6 +626,8 @@
                   <option value="cpu" data-i18n="settings.localCompute.cpu">CPU</option>
                   <option value="gpu" data-i18n="settings.localCompute.gpu">GPU (Vulkan)</option>
                 </select>
+                <!-- Only with the GPU selected and more than one GPU listed. -->
+                <select class="input model-select hidden" id="localGpuDeviceSelect" title="Choose a GPU" data-i18n="settings.localCompute.deviceTitle" data-i18n-attr="title"></select>
                 <progress id="localComputeProgress" class="hidden" max="1000" value="0"></progress>
                 <button class="btn btn-secondary hidden" id="localComputeActionBtn" type="button"></button>
                 <button class="btn btn-secondary hidden" id="localComputeDeleteBtn" type="button"></button>

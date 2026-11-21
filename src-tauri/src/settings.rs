@@ -120,6 +120,11 @@ pub struct AppConfig {
   /// See local_asr::ComputePreference; "auto" resolves to CPU today.
   #[serde(default = "default_local_compute")]
   pub local_compute: String,
+  /// The GPU the local engine uses when the GPU runtime sees more than one,
+  /// as llama.cpp names it ("Vulkan1"). Empty, or a name no longer listed,
+  /// means the first one. Set by `set_gpu_device`, never by the settings form.
+  #[serde(default)]
+  pub local_gpu_device: String,
   #[serde(default)]
   pub onboarding_completed: bool,
   /// Set once the user has picked a record shortcut in the picker or closed the
@@ -161,6 +166,7 @@ impl Default for AppConfig {
       dictionary: String::new(),
       nemotron_latency_ms: default_nemotron_latency_ms(),
       local_compute: default_local_compute(),
+      local_gpu_device: String::new(),
       onboarding_completed: false,
       shortcut_prompt_seen: false,
       qwen_model: String::new(),
@@ -221,6 +227,8 @@ pub struct SettingsPayload {
   pub nemotron_latency_ms: u32,
   /// Which backend the local engine runs on: "auto" | "cpu" | "gpu".
   pub local_compute: String,
+  /// The chosen GPU's llama.cpp name, or "" for the first one.
+  pub local_gpu_device: String,
   /// The OS the backend runs on ("macos" | "windows" | "linux"), so the frontend
   /// can choose OS-correct copy and modifier glyphs instead of relying on the
   /// deprecated navigator.platform.
@@ -285,6 +293,7 @@ impl SettingsPayload {
       provider: config.provider.clone(),
       nemotron_latency_ms: normalize_nemotron_latency_ms(config.nemotron_latency_ms),
       local_compute: normalize_local_compute(&config.local_compute).into(),
+      local_gpu_device: config.local_gpu_device.clone(),
       gpu_runtime_supported: crate::local_asr::gpu_runtime_supported(),
       os: std::env::consts::OS.to_string(),
       is_dev: cfg!(debug_assertions),

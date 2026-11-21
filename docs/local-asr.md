@@ -318,6 +318,18 @@ longer matches is rejected as `runtime_mismatch`. An installed pack that lists n
 Settings instead of silently running on CPU. Each runtime directory has its own sha256 stamp, so the
 pre-1.12 manual `bin/b9960-vulkan` extraction (unstamped) is reinstalled rather than trusted.
 
+### Machines with more than one GPU
+
+Reported in issue #21: a Windows machine with an AMD and an NVIDIA card could not use the NVIDIA one
+(the reporter got there by setting an environment variable by hand). Left alone, llama.cpp `b9960`
+spreads the language model's layers over every listed device, while the audio encoder (mtmd's
+`clip.cpp`) ignores `--device` and takes the first GPU unless `MTMD_BACKEND_DEVICE` names another.
+So with two or more devices every GPU process is pinned to exactly one, passing both `--device
+VulkanN` and `MTMD_BACKEND_DEVICE=VulkanN`: the device chosen in Settings
+(`AppConfig.local_gpu_device`, saved by `set_gpu_device`), or the first one when nothing is chosen
+or the chosen one is no longer listed. With a single device nothing is passed. Not yet checked on a
+real multi-GPU machine.
+
 ## Limits
 
 - Qwen takes no language parameter (it auto-detects) and has no dictionary channel. Nemotron's batch
