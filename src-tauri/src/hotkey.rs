@@ -353,6 +353,44 @@ impl HotkeyState {
     self.modifiers.shortcut_keys_up(&self.record_shortcut)
   }
 
+  /// Some modifier is believed down. Only then can a missed key-up leave one
+  /// stuck, so only then does the Windows loop check the keyboard itself.
+  #[cfg_attr(not(windows), allow(dead_code))]
+  pub fn any_modifier_down(&self) -> bool {
+    let m = self.modifiers;
+    m.ctrl.any() || m.shift.any() || m.alt.any() || m.meta.any()
+  }
+
+  /// Release every modifier this state still holds but the keyboard reports
+  /// up, exactly as if its key-up event had arrived, and return those keys.
+  /// A low-level hook can miss a key-up (an input method switching on
+  /// Ctrl+Shift, focus moving to an elevated window). The key then stays down
+  /// here, so letting go does not stop the recording and pressing the
+  /// shortcut again only "re-forms" a combo that never broke. Only releases
+  /// are synthesized: a press this state has not seen yet is still on its way.
+  #[cfg_attr(not(windows), allow(dead_code))]
+  pub fn resync_released(&mut self, actual: ModifierState, now: Instant) -> Vec<Key> {
+    let ours = self.modifiers;
+    let missed: Vec<Key> = [
+      (Key::ControlLeft, ours.ctrl.left, actual.ctrl.left),
+      (Key::ControlRight, ours.ctrl.right, actual.ctrl.right),
+      (Key::ShiftLeft, ours.shift.left, actual.shift.left),
+      (Key::ShiftRight, ours.shift.right, actual.shift.right),
+      (Key::Alt, ours.alt.left, actual.alt.left),
+      (Key::AltGr, ours.alt.right, actual.alt.right),
+      (Key::MetaLeft, ours.meta.left, actual.meta.left),
+      (Key::MetaRight, ours.meta.right, actual.meta.right),
+    ]
+    .into_iter()
+    .filter(|(_, held_here, held_now)| *held_here && !*held_now)
+    .map(|(key, _, _)| key)
+    .collect();
+    for key in &missed {
+      self.handle_event(KeyEvent::Release(*key), now);
+    }
+    missed
+  }
+
   pub fn handle_event(&mut self, event: KeyEvent, now: Instant) {
     match event {
       KeyEvent::NonModifierPress => self.handle_non_modifier_press(now),
@@ -825,6 +863,12 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
     let timeout = state
       .next_deadline()
       .map(|deadline| deadline.saturating_duration_since(Instant::now()));
+    #[cfg(windows)]
+    let timeout = if state.any_modifier_down() {
+      Some(timeout.map_or(KEY_STATE_POLL, |timeout| timeout.min(KEY_STATE_POLL)))
+    } else {
+      timeout
+    };
     let message = match timeout {
       Some(duration) => rx.recv_timeout(duration),
       None => rx.recv().map_err(|_| mpsc::RecvTimeoutError::Disconnected),
@@ -872,6 +916,19 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
       Err(mpsc::RecvTimeoutError::Disconnected) => return,
     }
 
+    #[cfg(windows)]
+    if state.any_modifier_down() {
+      let missed = state.resync_released(windows_modifier_state(), now);
+      if !missed.is_empty() {
+        log::info!(
+          target: "typealoud_lifecycle",
+          "hotkey missed_key_up keys={} recording={}",
+          missed.iter().map(|key| key_label(*key)).collect::<Vec<_>>().join("+"),
+          state.is_recording,
+        );
+      }
+    }
+
     state.handle_tick(now);
     for action in state.drain_actions() {
       if action == Action::Start {
@@ -890,6 +947,28 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
       }
       dispatch_action(&app, action);
     }
+  }
+}
+
+/// How often Windows checks the keyboard while a modifier is believed down.
+#[cfg(windows)]
+const KEY_STATE_POLL: Duration = Duration::from_millis(100);
+
+/// Which modifiers the keyboard reports down right now, side by side.
+#[cfg(windows)]
+fn windows_modifier_state() -> ModifierState {
+  use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_RCONTROL, VK_RMENU, VK_RSHIFT,
+    VK_RWIN,
+  };
+  // The high bit of GetAsyncKeyState is set while the key is down.
+  let down = |key: u16| unsafe { GetAsyncKeyState(key as i32) } < 0;
+  let sides = |left: u16, right: u16| Sides { left: down(left), right: down(right) };
+  ModifierState {
+    ctrl: sides(VK_LCONTROL, VK_RCONTROL),
+    shift: sides(VK_LSHIFT, VK_RSHIFT),
+    alt: sides(VK_LMENU, VK_RMENU),
+    meta: sides(VK_LWIN, VK_RWIN),
   }
 }
 
@@ -1527,6 +1606,77 @@ mod tests {
     let release_at = start + CANCEL_THRESHOLD + Duration::from_millis(100);
     state.handle_event(KeyEvent::Release(Key::ShiftLeft), release_at);
     state.handle_tick(release_at + STOP_DEBOUNCE + Duration::from_millis(1));
+    assert_eq!(state.drain_actions(), vec![Action::Stop]);
+  }
+
+  fn all_up() -> ModifierState {
+    ModifierState::default()
+  }
+
+  #[test]
+  fn a_missed_key_up_is_released_by_the_keyboard_check() {
+    let mut state = fresh_state();
+    let start = Instant::now();
+    press_combo(&mut state, start);
+    let _ = state.drain_actions();
+    // The user lets go, but the hook never delivers the key-ups.
+    let later = start + CANCEL_THRESHOLD + ms(500);
+    state.handle_tick(later);
+    assert!(state.drain_actions().is_empty());
+    // Pressing the shortcut again only "re-forms" the combo: still no stop.
+    state.handle_event(KeyEvent::Press(Key::ShiftLeft), later + ms(10));
+    state.handle_tick(later + ms(10) + STOP_DEBOUNCE + ms(1));
+    assert!(state.drain_actions().is_empty());
+    // The keyboard reports everything up: both keys are released and it stops.
+    let check = later + ms(400);
+    assert_eq!(state.resync_released(all_up(), check), vec![Key::ControlLeft, Key::ShiftLeft]);
+    state.handle_tick(check + STOP_DEBOUNCE + ms(1));
+    assert_eq!(state.drain_actions(), vec![Action::Stop]);
+    assert!(!state.any_modifier_down());
+  }
+
+  #[test]
+  fn the_keyboard_check_changes_nothing_while_the_keys_are_held() {
+    let mut state = fresh_state();
+    let start = Instant::now();
+    press_combo(&mut state, start);
+    let _ = state.drain_actions();
+    let held = ModifierState {
+      ctrl: Sides { left: true, right: false },
+      shift: Sides { left: true, right: false },
+      ..ModifierState::default()
+    };
+    assert!(state.resync_released(held, start + ms(900)).is_empty());
+    state.handle_tick(start + ms(900) + STOP_DEBOUNCE + ms(1));
+    assert!(state.drain_actions().is_empty());
+  }
+
+  #[test]
+  fn the_keyboard_check_never_presses_a_key() {
+    let mut state = fresh_state();
+    let down = ModifierState {
+      ctrl: Sides { left: true, right: false },
+      shift: Sides { left: true, right: false },
+      ..ModifierState::default()
+    };
+    assert!(state.resync_released(down, Instant::now()).is_empty());
+    assert!(state.drain_actions().is_empty());
+    assert!(!state.any_modifier_down());
+  }
+
+  #[test]
+  fn a_locked_recording_still_stops_after_a_missed_key_up() {
+    let start = Instant::now();
+    let mut state = fresh_state();
+    press_combo(&mut state, start);
+    release_combo(&mut state, start + ms(100));
+    press_combo(&mut state, start + ms(250));
+    assert_eq!(state.drain_actions(), vec![Action::Start, Action::Lock(1)]);
+    // The locking press comes up but the hook misses it, so the lock never arms.
+    let check = start + ms(400);
+    assert_eq!(state.resync_released(all_up(), check), vec![Key::ControlLeft, Key::ShiftLeft]);
+    // Now the next press of the shortcut ends the locked recording.
+    press_combo(&mut state, check + ms(2000));
     assert_eq!(state.drain_actions(), vec![Action::Stop]);
   }
 

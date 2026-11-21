@@ -168,6 +168,12 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   card's text at the caret, otherwise it cancels); a second press emits `lock-recording` and the
   recording runs hands-free until the next press, Escape or `LOCKED_MAX` (12 min). A lock the
   frontend ended itself is released through `release_recording_lock`.
+  On Windows a low-level hook can miss a key-up (Ctrl+Shift switching input methods, focus moving
+  to an elevated window), which left the shortcut "held" so neither letting go nor pressing it
+  again stopped the recording (issue #21). While any modifier is believed down, the state thread
+  checks the real key state with `GetAsyncKeyState` every 100 ms and releases a key the keyboard
+  reports up (`resync_released`, logged as `hotkey missed_key_up`). It only ever releases, never
+  presses: a press not yet seen is still on its way.
 - `settings.rs` — JSON config in the app data dir, shortcut normalization, auto-launch, model
   defaults and API keys.
 - `history.rs` — the History store (`{ "activities": [...] }`, 200-entry `HISTORY_CAP`, atomic
