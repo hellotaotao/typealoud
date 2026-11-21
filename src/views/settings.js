@@ -1131,9 +1131,13 @@ function renderGpuDeviceSelect(status, gpuSelected) {
   deviceSelect.replaceChildren(...devices.map((device) => {
     const option = document.createElement("option");
     option.value = device.id;
-    option.textContent = names.filter((name) => name === device.name).length > 1
+    const label = names.filter((name) => name === device.name).length > 1
       ? `${device.name} (${device.id})`
       : device.name;
+    // The one used when nothing is picked: Windows' high-performance GPU.
+    option.textContent = device.id === status.recommendedDevice
+      ? `${label} · ${translate("home.engineRecommended")}`
+      : label;
     return option;
   }));
   deviceSelect.value = status.device || devices[0].id;

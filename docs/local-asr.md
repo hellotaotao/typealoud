@@ -326,9 +326,21 @@ spreads the language model's layers over every listed device, while the audio en
 `clip.cpp`) ignores `--device` and takes the first GPU unless `MTMD_BACKEND_DEVICE` names another.
 So with two or more devices every GPU process is pinned to exactly one, passing both `--device
 VulkanN` and `MTMD_BACKEND_DEVICE=VulkanN`: the device chosen in Settings
-(`AppConfig.local_gpu_device`, saved by `set_gpu_device`), or the first one when nothing is chosen
-or the chosen one is no longer listed. With a single device nothing is passed. Not yet checked on a
-real multi-GPU machine.
+(`AppConfig.local_gpu_device`, saved by `set_gpu_device`), or the recommended one when nothing is
+chosen or the chosen one is no longer listed. With a single device nothing is passed. Not yet
+checked on a real multi-GPU machine.
+
+"The first one" was the wrong default: llama.cpp lists devices in driver order, which often puts the
+integrated GPU first. The recommended device (`recommended_gpu`, marked "Recommended" in Settings) is
+the first listed device that Windows ranks for high performance
+(`IDXGIFactory6::EnumAdapterByGpuPreference`, the order a game asking for the fast GPU gets, which
+also knows integrated from discrete and ranks an eGPU), matched by name after dropping (R)/(TM)
+marks. If DXGI names none of the listed devices, the names decide: NVIDIA, then discrete AMD (RX,
+Pro) and Intel Arc (A770, B580), then unrecognised names, then integrated ones (UHD, Iris, HD
+Graphics, "Radeon Graphics", "780M", and Intel's integrated "Arc Graphics"). The memory figures in
+`--list-devices` can't decide it: an integrated GPU reports shared system memory (the HD 630 in the
+fixture lists 12 GiB, the same as an RTX 4070). llama.cpp's Vulkan backend does know each device's
+type, but `--list-devices` doesn't print it.
 
 ## Limits
 

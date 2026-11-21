@@ -431,6 +431,10 @@ static GPU_DEVICES: Mutex<Option<Vec<GpuDevice>>> = Mutex::new(None);
 /// The GPU the user picked (`AppConfig::local_gpu_device`), "" for none.
 static GPU_DEVICE_CHOICE: Mutex<String> = Mutex::new(String::new());
 
+/// Adapter names in the order Windows ranks them for high performance (the
+/// list a game asking for the fast GPU gets), cached with `GPU_DEVICES`.
+static GPU_PERFORMANCE_ORDER: Mutex<Option<Vec<String>>> = Mutex::new(None);
+
 /// One device as `--list-devices` reports it: llama.cpp's name for it
 /// ("Vulkan1"), which `--device` takes, and its description for the UI.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -455,16 +459,137 @@ pub fn set_gpu_device(value: &str) {
 /// nothing to choose and llama.cpp's own default stands. With several, the
 /// language model would otherwise spread its layers over all of them while the
 /// audio encoder took the first, so a process always gets exactly one: the
-/// chosen device while it is still listed, else the first.
-fn pinned_gpu_device(devices: &[GpuDevice], choice: &str) -> Option<String> {
+/// chosen device while it is still listed, else the recommended one.
+fn pinned_gpu_device(devices: &[GpuDevice], choice: &str, performance_order: &[String]) -> Option<String> {
   if devices.len() < 2 {
     return None;
   }
   devices
     .iter()
     .find(|device| device.id == choice)
-    .or_else(|| devices.first())
+    .or_else(|| recommended_gpu(devices, performance_order))
     .map(|device| device.id.clone())
+}
+
+/// The device to use when the user has not picked one. llama.cpp lists devices
+/// in driver order, which often puts the integrated GPU first (the AMD iGPU on
+/// the issue #21 machine, the Intel HD 630 in the fixture below), so "first" is
+/// often the slow one. Windows' own high-performance ranking decides when it
+/// names a listed device; otherwise the device names do.
+fn recommended_gpu<'a>(devices: &'a [GpuDevice], performance_order: &[String]) -> Option<&'a GpuDevice> {
+  performance_order
+    .iter()
+    .find_map(|adapter| devices.iter().find(|device| same_gpu_name(&device.name, adapter)))
+    .or_else(|| {
+      // Highest score wins; on a tie the earlier device keeps its place.
+      devices
+        .iter()
+        .enumerate()
+        .max_by_key(|(index, device)| (gpu_name_score(&device.name), std::cmp::Reverse(*index)))
+        .map(|(_, device)| device)
+    })
+}
+
+/// Lower-case words only: "Intel(R) Arc(TM) A770 Graphics" -> "intel arc a770 graphics".
+fn normalized_gpu_name(name: &str) -> String {
+  let lowered = name.to_lowercase().replace("(r)", " ").replace("(tm)", " ").replace(['®', '™'], " ");
+  lowered
+    .split(|ch: char| !ch.is_alphanumeric())
+    .filter(|word| !word.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ")
+}
+
+/// Vulkan and DXGI both take the name from the driver, but one may carry a
+/// vendor prefix or suffix the other lacks.
+fn same_gpu_name(a: &str, b: &str) -> bool {
+  let (a, b) = (normalized_gpu_name(a), normalized_gpu_name(b));
+  !a.is_empty() && !b.is_empty() && (a == b || a.contains(&b) || b.contains(&a))
+}
+
+/// A rough rank from the name alone, the fallback when Windows gives no order:
+/// 3 NVIDIA; 2 a discrete AMD (RX, Pro) or Intel Arc card (A770, B580);
+/// 1 anything unrecognised; 0 an integrated GPU. Integrated names are checked
+/// first because Intel's integrated GPUs are also called "Arc Graphics" now.
+fn gpu_name_score(name: &str) -> u8 {
+  static INTEGRATED: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+  static DISCRETE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+  let name = normalized_gpu_name(name);
+  let integrated = INTEGRATED.get_or_init(|| {
+    regex::Regex::new(
+      r"\b(uhd graphics|hd graphics|iris|radeon graphics|radeon vega|vega \d+ graphics|intel arc graphics|\d{3}m graphics)\b|\bradeon \d{3}m\b",
+    )
+    .expect("integrated GPU pattern")
+  });
+  if integrated.is_match(&name) {
+    return 0;
+  }
+  if ["nvidia", "geforce", "quadro", "tesla"].iter().any(|word| name.contains(word)) {
+    return 3;
+  }
+  let discrete = DISCRETE.get_or_init(|| {
+    regex::Regex::new(r"\bradeon (rx|pro)\b|\barc [ab]\d{3}\b").expect("discrete GPU pattern")
+  });
+  if discrete.is_match(&name) {
+    return 2;
+  }
+  1
+}
+
+/// Adapter names, fastest first, as Windows ranks them for an app that asks
+/// for high performance. Software adapters (Microsoft Basic Render Driver)
+/// are left out. Empty on any failure: the device names decide instead.
+#[cfg(windows)]
+fn windows_gpu_performance_order() -> Vec<String> {
+  use windows::Win32::Graphics::Dxgi::{
+    CreateDXGIFactory1, IDXGIAdapter1, IDXGIFactory6, DXGI_ADAPTER_FLAG_SOFTWARE,
+    DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+  };
+  let factory: IDXGIFactory6 = match unsafe { CreateDXGIFactory1() } {
+    Ok(factory) => factory,
+    Err(error) => {
+      log::warn!("local-asr: no DXGI high-performance GPU order: {error}");
+      return Vec::new();
+    }
+  };
+  let mut names = Vec::new();
+  // Bounded so a misbehaving driver cannot loop forever.
+  for index in 0..16 {
+    let adapter: IDXGIAdapter1 =
+      match unsafe { factory.EnumAdapterByGpuPreference(index, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE) } {
+        Ok(adapter) => adapter,
+        Err(_) => break,
+      };
+    let Ok(desc) = (unsafe { adapter.GetDesc1() }) else { continue };
+    if desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0 {
+      continue;
+    }
+    let len = desc.Description.iter().position(|unit| *unit == 0).unwrap_or(desc.Description.len());
+    let name = String::from_utf16_lossy(&desc.Description[..len]).trim().to_string();
+    if !name.is_empty() {
+      names.push(name);
+    }
+  }
+  names
+}
+
+#[cfg(not(windows))]
+fn windows_gpu_performance_order() -> Vec<String> {
+  Vec::new()
+}
+
+fn gpu_performance_order() -> Vec<String> {
+  GPU_PERFORMANCE_ORDER
+    .lock()
+    .unwrap()
+    .get_or_insert_with(|| {
+      let order = windows_gpu_performance_order();
+      if !order.is_empty() {
+        log::info!("local-asr: GPU performance order: {}", order.join(", "));
+      }
+      order
+    })
+    .clone()
 }
 
 /// Pin a GPU process to one device. `--device` covers the language model; the
@@ -475,7 +600,7 @@ async fn pin_gpu_device(command: &mut tokio::process::Command, runtime: Runtime)
     return;
   }
   let choice = GPU_DEVICE_CHOICE.lock().unwrap().clone();
-  if let Some(device) = pinned_gpu_device(&gpu_devices().await, &choice) {
+  if let Some(device) = pinned_gpu_device(&gpu_devices().await, &choice, &gpu_performance_order()) {
     command.arg("--device").arg(&device).env("MTMD_BACKEND_DEVICE", &device);
   }
 }
@@ -646,6 +771,8 @@ pub struct GpuRuntimeStatus {
   /// The device a GPU process runs on: the chosen one, or the first. Empty
   /// when nothing is listed.
   pub device: String,
+  /// The device used when the user has picked none (several devices only).
+  pub recommended_device: String,
   /// Whether a decode started right now would run on the GPU.
   pub active: bool,
   /// Whether a GPU start already failed this session and CPU took over.
@@ -661,6 +788,7 @@ pub async fn gpu_runtime_status(downloading: bool) -> GpuRuntimeStatus {
       downloaded_bytes: 0,
       devices: Vec::new(),
       device: String::new(),
+      recommended_device: String::new(),
       active: false,
       fell_back: false,
     };
@@ -691,9 +819,14 @@ pub async fn gpu_runtime_status(downloading: bool) -> GpuRuntimeStatus {
     downloaded_bytes: downloaded,
     device: {
       let choice = GPU_DEVICE_CHOICE.lock().unwrap().clone();
-      pinned_gpu_device(&devices, &choice)
+      pinned_gpu_device(&devices, &choice, &gpu_performance_order())
         .or_else(|| devices.first().map(|device| device.id.clone()))
         .unwrap_or_default()
+    },
+    recommended_device: if devices.len() > 1 {
+      recommended_gpu(&devices, &gpu_performance_order()).map(|device| device.id.clone()).unwrap_or_default()
+    } else {
+      String::new()
     },
     devices,
     active: dir.as_deref().map(|dir| selected_runtime(dir) == Runtime::Gpu).unwrap_or(false),
@@ -2457,13 +2590,65 @@ mod tests {
   fn a_gpu_process_is_pinned_to_one_device_only_when_there_are_several() {
     let device = |id: &str| GpuDevice { id: id.into(), name: format!("GPU {id}") };
     // One device: llama.cpp's default already means that one.
-    assert_eq!(pinned_gpu_device(&[device("Vulkan0")], "Vulkan0"), None);
-    assert_eq!(pinned_gpu_device(&[], ""), None);
+    assert_eq!(pinned_gpu_device(&[device("Vulkan0")], "Vulkan0", &[]), None);
+    assert_eq!(pinned_gpu_device(&[], "", &[]), None);
     let two = [device("Vulkan0"), device("Vulkan1")];
-    assert_eq!(pinned_gpu_device(&two, "Vulkan1").as_deref(), Some("Vulkan1"));
-    // No choice yet, or a device that is no longer listed: the first.
-    assert_eq!(pinned_gpu_device(&two, "").as_deref(), Some("Vulkan0"));
-    assert_eq!(pinned_gpu_device(&two, "Vulkan5").as_deref(), Some("Vulkan0"));
+    assert_eq!(pinned_gpu_device(&two, "Vulkan1", &[]).as_deref(), Some("Vulkan1"));
+    // No choice yet, or a device that is no longer listed: the recommended
+    // one, which for two unrecognised names is the first.
+    assert_eq!(pinned_gpu_device(&two, "", &[]).as_deref(), Some("Vulkan0"));
+    assert_eq!(pinned_gpu_device(&two, "Vulkan5", &[]).as_deref(), Some("Vulkan0"));
+  }
+
+  fn gpus(names: &[&str]) -> Vec<GpuDevice> {
+    names
+      .iter()
+      .enumerate()
+      .map(|(index, name)| GpuDevice { id: format!("Vulkan{index}"), name: (*name).into() })
+      .collect()
+  }
+
+  #[test]
+  fn the_user_choice_beats_the_recommendation() {
+    let devices = gpus(&["Intel(R) HD Graphics 630", "NVIDIA GeForce RTX 4070"]);
+    assert_eq!(pinned_gpu_device(&devices, "", &[]).as_deref(), Some("Vulkan1"));
+    assert_eq!(pinned_gpu_device(&devices, "Vulkan0", &[]).as_deref(), Some("Vulkan0"));
+  }
+
+  #[test]
+  fn windows_performance_order_decides_when_it_names_a_listed_device() {
+    let devices = gpus(&["AMD Radeon(TM) Graphics", "NVIDIA GeForce RTX 3060"]);
+    // Windows ranked the NVIDIA card first; the names agree apart from marks.
+    let order = ["NVIDIA GeForce RTX 3060".to_string(), "AMD Radeon(TM) Graphics".to_string()];
+    assert_eq!(recommended_gpu(&devices, &order).unwrap().id, "Vulkan1");
+    // Windows knows better than the names, e.g. an eGPU it ranks first.
+    let reversed = ["AMD Radeon(TM) Graphics".to_string()];
+    assert_eq!(recommended_gpu(&devices, &reversed).unwrap().id, "Vulkan0");
+    // An order naming no listed device (a display adapter Vulkan skips) falls back to names.
+    let unrelated = ["Microsoft Remote Display Adapter".to_string()];
+    assert_eq!(recommended_gpu(&devices, &unrelated).unwrap().id, "Vulkan1");
+  }
+
+  #[test]
+  fn names_put_discrete_cards_ahead_of_integrated_ones() {
+    for (names, expected) in [
+      (vec!["Intel(R) UHD Graphics 770", "NVIDIA GeForce RTX 4060 Laptop GPU"], "Vulkan1"),
+      (vec!["AMD Radeon 780M Graphics", "AMD Radeon RX 7600"], "Vulkan1"),
+      (vec!["Intel(R) Arc(TM) Graphics", "Intel(R) Arc(TM) A770 Graphics"], "Vulkan1"),
+      (vec!["Intel(R) Iris(R) Xe Graphics", "AMD Radeon(TM) Vega 8 Graphics"], "Vulkan0"),
+      (vec!["AMD Radeon RX 6600", "NVIDIA GeForce GTX 1660"], "Vulkan1"),
+      (vec!["Some Future GPU", "Intel(R) HD Graphics 630"], "Vulkan0"),
+    ] {
+      assert_eq!(recommended_gpu(&gpus(&names), &[]).unwrap().id, expected, "{names:?}");
+    }
+  }
+
+  #[test]
+  fn gpu_names_match_across_vulkan_and_dxgi_spellings() {
+    assert!(same_gpu_name("Intel(R) Arc(TM) A770 Graphics", "Intel Arc A770 Graphics"));
+    assert!(same_gpu_name("NVIDIA GeForce RTX 4070", "NVIDIA GeForce RTX 4070"));
+    assert!(!same_gpu_name("NVIDIA GeForce RTX 4070", "AMD Radeon RX 7600"));
+    assert!(!same_gpu_name("", "AMD Radeon RX 7600"));
   }
 
   #[test]
