@@ -112,13 +112,29 @@
   }
 
   const IDLE_HINT_MS = 8000;
+  // How long a newly picked one-sided key may go unconfirmed before the
+  // picker puts the previous key back (see `confirmOneSided`).
+  const CONFIRM_ONE_SIDED_MS = 20000;
+
+  // A single right-hand key ("RightAlt") only works when the keyboard reports
+  // left and right apart; some forwarded keyboards (screen sharing, shared
+  // keyboard tools) don't, and then the key does nothing at all.
+  function isOneSided(shortcut) {
+    const keys = parseKeys(shortcut);
+    return keys.length === 1 && keys[0].right;
+  }
 
   // A list of shortcut cards with a tester under it. The owner saves the
   // choice (`onSelect`, which resolves to the stored value) and forwards the
   // backend's `hotkey-probe` events while the tester is the visible one.
   // `usualValue` (optional) marks the key the user had before this picker
   // opened and keeps its card in view, so switching back is one click.
-  function createPicker({ os, translate, onSelect, usualValue = "" }) {
+  // `confirmOneSided`: a one-sided key picked here is kept only once it has
+  // been seen working (in the tester, or `confirmFromUse` after a real
+  // dictation). Otherwise, after CONFIRM_ONE_SIDED_MS or on `settle()`, the
+  // previous key comes back, so a keyboard that can't tell the sides apart
+  // never leaves the user with no working shortcut.
+  function createPicker({ os, translate, onSelect, usualValue = "", confirmOneSided = false }) {
     const platform = normalizeOs(os);
     const root = document.createElement("div");
     root.className = "shortcut-picker";
@@ -147,6 +163,36 @@
     let unavailableKey = "";
     let idleTimer = null;
     let test = { phase: "idle", passed: false, held: false, down: [], idleHint: false };
+    // The key to go back to while a one-sided pick is unconfirmed.
+    let fallback = null;
+    let fallbackTimer = null;
+    // The one-sided key that was just put back, for the tester's message.
+    let revertedFrom = "";
+
+    function clearFallback() {
+      fallback = null;
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
+
+    async function revertUnconfirmed() {
+      if (fallback === null) return;
+      const back = fallback;
+      const tried = current;
+      clearFallback();
+      saving = true;
+      render();
+      try {
+        current = (await onSelect(back)) || back;
+        resetTest();
+        revertedFrom = tried;
+      } catch (error) {
+        console.error("Failed to restore the record shortcut:", error);
+      } finally {
+        saving = false;
+        render();
+      }
+    }
 
     function resetTest() {
       test = { phase: "idle", passed: false, held: false, down: [], idleHint: false };
@@ -200,10 +246,19 @@
     async function choose(value) {
       if (saving || value === current) return;
       saving = true;
+      revertedFrom = "";
       render();
+      const previous = fallback ?? current;
       try {
         current = (await onSelect(value)) || value;
         resetTest();
+        clearFallback();
+        // Without the tester (no Accessibility) nothing could confirm it, and
+        // no shortcut works anyway, so there is nothing to protect.
+        if (confirmOneSided && previous && isOneSided(current) && !unavailableKey) {
+          fallback = previous;
+          fallbackTimer = window.setTimeout(() => void revertUnconfirmed(), CONFIRM_ONE_SIDED_MS);
+        }
       } catch (error) {
         console.error("Failed to save the record shortcut:", error);
       } finally {
@@ -229,8 +284,12 @@
       tester.classList.toggle("passed", test.passed);
       let key = `shortcut.test.${test.phase}`;
       if (unavailableKey) key = unavailableKey;
+      else if (revertedFrom && test.phase === "idle") key = "shortcut.test.reverted";
       else if (test.phase === "idle" && test.idleHint) key = "shortcut.test.noKeys";
-      status.textContent = translate(key, { keys: label(current, platform, translate) });
+      status.textContent = translate(key, {
+        keys: label(current, platform, translate),
+        tried: label(revertedFrom, platform, translate),
+      });
     }
 
     function render() {
@@ -288,7 +347,19 @@
       handleProbe(probe) {
         test = nextTestState(test, probe);
         if (test.down.length) test.idleHint = false;
+        if (test.passed) clearFallback();
         renderTester();
+      },
+      // A dictation started with the saved shortcut, so the key works.
+      confirmFromUse() {
+        clearFallback();
+      },
+      // The picker is closing: an unconfirmed one-sided key goes back now.
+      settle() {
+        return revertUnconfirmed();
+      },
+      get unconfirmed() {
+        return fallback !== null;
       },
       get passed() {
         return test.passed;
@@ -296,7 +367,7 @@
     };
   }
 
-  const api = { options, keycaps, label, parseKeys, nextTestState, createPicker };
+  const api = { options, keycaps, label, parseKeys, nextTestState, isOneSided, createPicker };
   if (typeof window !== "undefined") window.TypeAloudShortcuts = api;
   if (typeof globalThis !== "undefined") globalThis.TypeAloudShortcuts = api;
 })();

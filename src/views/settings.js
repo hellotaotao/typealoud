@@ -1944,6 +1944,8 @@ function setupShortcutSync() {
     currentSettings.shortcut = payload.recordShortcut;
     renderShortcutPicker();
   });
+  // A real dictation proves a just-picked key works.
+  ipc.on("start-recording", () => shortcutPicker?.confirmFromUse());
   // The main window turns the tester on while this page is showing.
   ipc.on("hotkey-probe", (_event, payload) => {
     if (!document.getElementById("settings-page")?.classList.contains("active")) return;
@@ -1962,6 +1964,7 @@ function renderShortcutPicker() {
     shortcutPicker = window.TypeAloudShortcuts.createPicker({
       os: currentSettings.os,
       translate,
+      confirmOneSided: true,
       onSelect: async (value) => {
         try {
           const saved = await ipc.invoke("set-record-shortcut", value);

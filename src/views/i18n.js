@@ -139,6 +139,7 @@
           tooShort: "That was a quick tap. Hold the keys down a little longer.",
           interrupted: "Another key was pressed in between. Try the shortcut on its own.",
           axNeeded: "Accessibility permission is off, so no shortcut works yet. Turn it on, then test here.",
+          reverted: "{tried} wasn't detected, so you're back on {keys}. Some keyboards, and keyboards shared from another computer, don't tell left and right keys apart.",
         },
       },
       shortcutIntro: {
@@ -820,6 +821,7 @@
           tooShort: "刚才只是轻点了一下，按住久一点试试。",
           interrupted: "中途按了别的键，单独按住它试试。",
           axNeeded: "辅助功能权限没开，所有快捷键暂时都用不了。开启后再来这里测试。",
+          reverted: "没检测到{tried}，已经改回 {keys}。有些键盘（包括从另一台电脑共享过来的键盘）分不出左右两边的键。",
         },
       },
       shortcutIntro: {

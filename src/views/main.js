@@ -227,6 +227,11 @@ function bindEvents() {
     void refreshReadiness();
   });
 
+  // A real dictation proves a just-picked key works.
+  ipc.on("start-recording", () => {
+    shortcutIntroPicker?.confirmFromUse();
+  });
+
   ipc.on("hotkey-probe", (_event, payload) => {
     if (shortcutIntroVisible()) {
       shortcutIntroPicker?.handleProbe(payload);
@@ -1407,6 +1412,7 @@ function showShortcutIntro() {
       os: cachedSettings?.os,
       translate: t,
       usualValue: shortcutIntroUsual,
+      confirmOneSided: true,
       onSelect: async (value) => {
         const saved = await ipc.invoke("set-record-shortcut", value);
         if (cachedSettings) {
@@ -1467,6 +1473,13 @@ function renderShortcutIntro() {
 async function closeShortcutIntro() {
   const dialog = document.getElementById("shortcutIntro");
   if (!dialog || dialog.hidden) return;
+  // A one-sided key that was never seen working goes back to the previous
+  // key; stay open so the user reads why before closing again.
+  if (shortcutIntroPicker?.unconfirmed) {
+    await shortcutIntroPicker.settle();
+    renderShortcutIntro();
+    return;
+  }
   dialog.hidden = true;
   syncHotkeyProbe();
   void refreshReadiness();

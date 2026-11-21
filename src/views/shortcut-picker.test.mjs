@@ -56,3 +56,13 @@ test("the tester passes on the first held press and teaches the double tap", () 
   assert.equal(state.phase, "tooShort");
   assert.equal(state.passed, true);
 });
+
+test("only a single right-hand key needs to be seen working before it is kept", () => {
+  const { isOneSided } = shortcuts;
+  assert.equal(isOneSided("RightAlt"), true);
+  assert.equal(isOneSided("RightMeta"), true);
+  assert.equal(isOneSided("RightCtrl"), true);
+  assert.equal(isOneSided("Ctrl+Meta"), false);
+  assert.equal(isOneSided("Ctrl+Shift"), false);
+  assert.equal(isOneSided(""), false);
+});
