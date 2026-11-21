@@ -274,7 +274,8 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 
 ### Polish relay (in the website repository)
 
-`POST https://typealoud.app/v1/polish` forwards dictated text to the polish model and returns the
+`POST https://typealoud.app/v1/polish` forwards dictated text to the polish model (OpenAI through
+Vercel AI Gateway, zero data retention required on every request) and returns the
 cleaned text. Its code, prompt, limits and eval cases live in the public `hellotaotao/typealoud-web`
 repository (`api/polish.js`, `relay/`, `scripts/polish-eval/`), which is the Vercel project behind
 typealoud.app. The app does not call it yet. Design and measurements:
