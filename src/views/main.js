@@ -1425,6 +1425,12 @@ function showShortcutIntro() {
     });
   }
   dialog.hidden = false;
+  // Shown once is seen: closing the window or quitting instead of using the
+  // dialog's own button must not bring it back on every launch.
+  if (cachedSettings) cachedSettings.shortcutPromptDue = false;
+  void Promise.resolve(ipc.invoke("dismiss-shortcut-prompt")).catch((error) => {
+    console.error("Failed to record the shortcut prompt as seen:", error);
+  });
   shortcutIntroPicker.setValue(shortcutIntroUsual);
   shortcutIntroPicker.restartTest();
   renderShortcutIntro();
@@ -1463,13 +1469,7 @@ async function closeShortcutIntro() {
   if (!dialog || dialog.hidden) return;
   dialog.hidden = true;
   syncHotkeyProbe();
-  if (cachedSettings) cachedSettings.shortcutPromptDue = false;
   void refreshReadiness();
-  try {
-    await ipc.invoke("dismiss-shortcut-prompt");
-  } catch (error) {
-    console.error("Failed to record the shortcut prompt as seen:", error);
-  }
 }
 
 // Each step is counted once per install (usage.rs dedupes); this set only

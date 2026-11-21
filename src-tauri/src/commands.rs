@@ -589,6 +589,8 @@ pub fn save_settings(
     config.debug_save_audio = existing.debug_save_audio;
     // Saved on its own by set_gpu_device.
     config.local_gpu_device = existing.local_gpu_device.clone();
+    // Set by set_record_shortcut and dismiss_shortcut_prompt; not a form field.
+    config.shortcut_prompt_seen = existing.shortcut_prompt_seen;
     config.shortcut = settings::normalize_record_shortcut(&config.shortcut);
     config.nemotron_latency_ms =
       settings::normalize_nemotron_latency_ms(config.nemotron_latency_ms);
@@ -2056,6 +2058,10 @@ fn enqueue_media_files(
   state: &AppState,
   paths: Vec<std::path::PathBuf>,
 ) -> Result<Vec<String>, String> {
+  // The page is hidden outside dev builds; nothing may start a job there either.
+  if !crate::file_transcription::PAGE_ENABLED {
+    return Err("FILES_DISABLED".into());
+  }
   let media: Vec<_> = paths
     .into_iter()
     .filter(|path| path.is_file() && crate::file_transcription::is_media_path(path))
@@ -2090,6 +2096,9 @@ pub async fn pick_transcription_files(
   state: State<'_, AppState>,
 ) -> Result<Vec<String>, String> {
   use tauri_plugin_dialog::DialogExt;
+  if !crate::file_transcription::PAGE_ENABLED {
+    return Err("FILES_DISABLED".into());
+  }
   // Check the engine before asking for files, so a missing key or model is
   // reported without making the user pick a file first.
   file_engine(&app, &state)?;

@@ -479,7 +479,14 @@ fn pinned_gpu_device(devices: &[GpuDevice], choice: &str, performance_order: &[S
 fn recommended_gpu<'a>(devices: &'a [GpuDevice], performance_order: &[String]) -> Option<&'a GpuDevice> {
   performance_order
     .iter()
-    .find_map(|adapter| devices.iter().find(|device| same_gpu_name(&device.name, adapter)))
+    .find_map(|adapter| {
+      // An exact name first: "RTX 4070" is contained in "RTX 4070 Ti".
+      let wanted = normalized_gpu_name(adapter);
+      devices
+        .iter()
+        .find(|device| normalized_gpu_name(&device.name) == wanted)
+        .or_else(|| devices.iter().find(|device| same_gpu_name(&device.name, adapter)))
+    })
     .or_else(|| {
       // Highest score wins; on a tie the earlier device keeps its place.
       devices
@@ -2627,6 +2634,10 @@ mod tests {
     // An order naming no listed device (a display adapter Vulkan skips) falls back to names.
     let unrelated = ["Microsoft Remote Display Adapter".to_string()];
     assert_eq!(recommended_gpu(&devices, &unrelated).unwrap().id, "Vulkan1");
+    // A name contained in another must not take the exact match's place.
+    let similar = gpus(&["NVIDIA GeForce RTX 4070", "NVIDIA GeForce RTX 4070 Ti"]);
+    let order = ["NVIDIA GeForce RTX 4070 Ti".to_string()];
+    assert_eq!(recommended_gpu(&similar, &order).unwrap().id, "Vulkan1");
   }
 
   #[test]

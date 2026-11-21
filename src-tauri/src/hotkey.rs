@@ -300,9 +300,14 @@ fn main_window_focused(app: &AppHandle) -> bool {
 enum LockPhase {
   /// The press that locked is still down. Held past CANCEL_THRESHOLD it turns
   /// out to be an ordinary hold, and its release stops as usual.
-  LockingPress { since: Instant },
+  LockingPress { since: Instant, broken_at: Option<Instant> },
   /// Keys are up; the next time the combo forms, the recording stops.
   Armed,
+  /// The combo formed again: the recording stops when it comes up, unless
+  /// another key is pressed first. Then it was a shortcut that happens to use
+  /// the key (Right Option+Left Arrow jumps a word in macOS), and the
+  /// recording goes on.
+  StoppingPress,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -310,6 +315,13 @@ struct Lock {
   id: u64,
   phase: LockPhase,
   expires_at: Instant,
+}
+
+fn is_modifier_key(key: Key) -> bool {
+  matches!(
+    key,
+    Key::ControlLeft | Key::ControlRight | Key::ShiftLeft | Key::ShiftRight | Key::Alt | Key::AltGr | Key::MetaLeft | Key::MetaRight
+  )
 }
 
 #[derive(Debug)]
@@ -327,6 +339,10 @@ pub struct HotkeyState {
   lock: Option<Lock>,
   last_lock_id: u64,
   pending: Vec<Action>,
+  /// When the last key event from the hook arrived; see `resync_released`.
+  last_key_event_at: Option<Instant>,
+  /// Keys the previous keyboard check already found up while held here.
+  resync_suspects: Vec<Key>,
 }
 
 impl HotkeyState {
@@ -342,6 +358,8 @@ impl HotkeyState {
       lock: None,
       last_lock_id: 0,
       pending: Vec::new(),
+      last_key_event_at: None,
+      resync_suspects: Vec::new(),
     }
   }
 
@@ -368,10 +386,23 @@ impl HotkeyState {
   /// here, so letting go does not stop the recording and pressing the
   /// shortcut again only "re-forms" a combo that never broke. Only releases
   /// are synthesized: a press this state has not seen yet is still on its way.
+  ///
+  /// The hook hands a key to this thread before Windows updates the key state
+  /// GetAsyncKeyState reads, so a key that was just pressed can read as up.
+  /// The check therefore stays out of the way for RESYNC_QUIET_PERIOD after
+  /// any key event, and releases a key only when two checks in a row found it
+  /// up. A stuck key is freed within about half a second.
   #[cfg_attr(not(windows), allow(dead_code))]
   pub fn resync_released(&mut self, actual: ModifierState, now: Instant) -> Vec<Key> {
+    if self
+      .last_key_event_at
+      .is_some_and(|at| now.saturating_duration_since(at) < RESYNC_QUIET_PERIOD)
+    {
+      self.resync_suspects.clear();
+      return Vec::new();
+    }
     let ours = self.modifiers;
-    let missed: Vec<Key> = [
+    let up_now: Vec<Key> = [
       (Key::ControlLeft, ours.ctrl.left, actual.ctrl.left),
       (Key::ControlRight, ours.ctrl.right, actual.ctrl.right),
       (Key::ShiftLeft, ours.shift.left, actual.shift.left),
@@ -385,13 +416,28 @@ impl HotkeyState {
     .filter(|(_, held_here, held_now)| *held_here && !*held_now)
     .map(|(key, _, _)| key)
     .collect();
+    let missed: Vec<Key> = up_now.iter().copied().filter(|key| self.resync_suspects.contains(key)).collect();
+    self.resync_suspects = up_now.into_iter().filter(|key| !missed.contains(key)).collect();
     for key in &missed {
-      self.handle_event(KeyEvent::Release(*key), now);
+      self.apply_event(KeyEvent::Release(*key), now);
     }
     missed
   }
 
+  /// A key event from the hook. Synthesized releases go to `apply_event`
+  /// directly, so they don't count as fresh input for the keyboard check.
   pub fn handle_event(&mut self, event: KeyEvent, now: Instant) {
+    // Only a modifier's own event can make its key state lag. Typing letters
+    // must not hold the check off, or a stuck key stays down while the user
+    // types on after letting go.
+    if matches!(event, KeyEvent::Press(key) | KeyEvent::Release(key) if is_modifier_key(key)) {
+      self.last_key_event_at = Some(now);
+      self.resync_suspects.clear();
+    }
+    self.apply_event(event, now);
+  }
+
+  fn apply_event(&mut self, event: KeyEvent, now: Instant) {
     match event {
       KeyEvent::NonModifierPress => self.handle_non_modifier_press(now),
       KeyEvent::Press(key) => {
@@ -411,9 +457,9 @@ impl HotkeyState {
 
         if let Some(lock) = self.lock {
           // The locking press itself cannot form the combo again; any later
-          // formation is the press that ends the recording.
+          // formation is the press that ends the recording, once it comes up.
           if lock.phase == LockPhase::Armed && self.combo_held() {
-            self.finish_recording(Action::Stop);
+            self.lock = Some(Lock { phase: LockPhase::StoppingPress, ..lock });
           }
           return;
         }
@@ -428,7 +474,7 @@ impl HotkeyState {
           self.last_lock_id += 1;
           self.lock = Some(Lock {
             id: self.last_lock_id,
-            phase: LockPhase::LockingPress { since: now },
+            phase: LockPhase::LockingPress { since: now, broken_at: None },
             expires_at: now + LOCKED_MAX,
           });
           self.pending.push(Action::Lock(self.last_lock_id));
@@ -460,14 +506,22 @@ impl HotkeyState {
           // Still a valid combo (an unrelated modifier lifted) — keep recording.
           self.stop_deadline = None;
         } else if let Some(lock) = self.lock {
-          if let LockPhase::LockingPress { since } = lock.phase {
-            if now.saturating_duration_since(since) >= CANCEL_THRESHOLD {
+          if let LockPhase::LockingPress { since, broken_at } = lock.phase {
+            // How long the second press was held is decided by when the combo
+            // broke, not by when its last key came up: that key-up may arrive
+            // late, synthesized by the Windows keyboard check.
+            let broken_at = broken_at.unwrap_or(now);
+            if broken_at.saturating_duration_since(since) >= CANCEL_THRESHOLD {
               // Tap, then press-and-hold: an ordinary dictation after all.
               self.lock = None;
               self.stop_deadline = Some(now + STOP_DEBOUNCE);
             } else if self.combo_keys_up() {
               self.lock = Some(Lock { phase: LockPhase::Armed, ..lock });
+            } else {
+              self.lock = Some(Lock { phase: LockPhase::LockingPress { since, broken_at: Some(broken_at) }, ..lock });
             }
+          } else if lock.phase == LockPhase::StoppingPress {
+            self.finish_recording(Action::Stop);
           }
         } else if self.tap_deadline.is_some() {
           self.tap_keys_up = self.combo_keys_up();
@@ -493,8 +547,12 @@ impl HotkeyState {
 
   fn handle_non_modifier_press(&mut self, now: Instant) {
     // A locked recording runs while the user may type elsewhere; only Escape
-    // or the combo ends it.
-    if self.lock.is_some() {
+    // or the combo ends it. A key pressed while the combo is down to stop it
+    // means the combo was part of a shortcut: keep recording.
+    if let Some(lock) = self.lock {
+      if lock.phase == LockPhase::StoppingPress {
+        self.lock = Some(Lock { phase: LockPhase::Armed, ..lock });
+      }
       return;
     }
     // A non-modifier pressed right after the combo (e.g. Ctrl+Shift+Arrow)
@@ -953,6 +1011,9 @@ fn run_state_thread(app: AppHandle, rx: Receiver<HotkeyMsg>, initial_shortcut: S
 /// How often Windows checks the keyboard while a modifier is believed down.
 #[cfg(windows)]
 const KEY_STATE_POLL: Duration = Duration::from_millis(100);
+/// How long after the last key event the keyboard check waits before it trusts
+/// GetAsyncKeyState (see `resync_released`).
+const RESYNC_QUIET_PERIOD: Duration = Duration::from_millis(300);
 
 /// Which modifiers the keyboard reports down right now, side by side.
 #[cfg(windows)]
@@ -1627,8 +1688,11 @@ mod tests {
     state.handle_event(KeyEvent::Press(Key::ShiftLeft), later + ms(10));
     state.handle_tick(later + ms(10) + STOP_DEBOUNCE + ms(1));
     assert!(state.drain_actions().is_empty());
-    // The keyboard reports everything up: both keys are released and it stops.
+    // The keyboard reports everything up on two checks in a row: both keys are
+    // released and it stops.
     let check = later + ms(400);
+    assert!(state.resync_released(all_up(), check).is_empty());
+    let check = check + ms(100);
     assert_eq!(state.resync_released(all_up(), check), vec![Key::ControlLeft, Key::ShiftLeft]);
     state.handle_tick(check + STOP_DEBOUNCE + ms(1));
     assert_eq!(state.drain_actions(), vec![Action::Stop]);
@@ -1673,10 +1737,104 @@ mod tests {
     press_combo(&mut state, start + ms(250));
     assert_eq!(state.drain_actions(), vec![Action::Start, Action::Lock(1)]);
     // The locking press comes up but the hook misses it, so the lock never arms.
-    let check = start + ms(400);
+    let check = start + ms(600);
+    assert!(state.resync_released(all_up(), check).is_empty());
+    let check = check + ms(100);
     assert_eq!(state.resync_released(all_up(), check), vec![Key::ControlLeft, Key::ShiftLeft]);
     // Now the next press of the shortcut ends the locked recording.
     press_combo(&mut state, check + ms(2000));
+    release_combo(&mut state, check + ms(2100));
+    assert_eq!(state.drain_actions(), vec![Action::Stop]);
+  }
+
+  #[test]
+  fn a_late_key_up_on_the_locking_press_still_arms_the_lock() {
+    // Windows: the second tap comes up at 150 ms but only Shift's key-up
+    // arrives; the keyboard check frees Ctrl at 550 ms. That is not a hold.
+    let start = Instant::now();
+    let mut state = fresh_state();
+    press_combo(&mut state, start);
+    release_combo(&mut state, start + ms(100));
+    press_combo(&mut state, start + ms(250));
+    state.handle_event(KeyEvent::Release(Key::ShiftLeft), start + ms(400));
+    assert_eq!(state.drain_actions(), vec![Action::Start, Action::Lock(1)]);
+    assert!(state.resync_released(all_up(), start + ms(700)).is_empty());
+    assert_eq!(state.resync_released(all_up(), start + ms(800)), vec![Key::ControlLeft]);
+    state.handle_tick(start + ms(3000));
+    assert!(state.drain_actions().is_empty(), "still hands-free");
+  }
+
+  #[test]
+  fn typing_after_a_missed_key_up_does_not_hold_off_the_keyboard_check() {
+    let start = Instant::now();
+    let mut state = fresh_state();
+    press_combo(&mut state, start);
+    let _ = state.drain_actions();
+    // Let go at 2 s, key-ups lost, and type straight on.
+    for step in 0..10 {
+      let at = start + ms(2000 + step * 100);
+      // On Windows a letter arrives as its own press and release.
+      state.handle_event(KeyEvent::Press(Key::KeyA), at);
+      state.handle_event(KeyEvent::Release(Key::KeyA), at + ms(40));
+      if step >= 4 {
+        let _ = state.resync_released(all_up(), at + ms(50));
+      }
+    }
+    state.handle_tick(start + ms(4000));
+    assert_eq!(state.drain_actions(), vec![Action::Stop]);
+  }
+
+  #[test]
+  fn a_key_just_pressed_is_not_released_by_the_keyboard_check() {
+    // The hook hands over a key before Windows updates the state
+    // GetAsyncKeyState reads, so right after a press the key can read as up.
+    let mut state = fresh_state();
+    let start = Instant::now();
+    press_combo(&mut state, start);
+    assert!(state.resync_released(all_up(), start).is_empty());
+    assert!(state.resync_released(all_up(), start + ms(100)).is_empty());
+    assert!(state.resync_released(all_up(), start + ms(200)).is_empty());
+    state.handle_tick(start + ms(900));
+    assert_eq!(state.drain_actions(), vec![Action::Start], "still recording");
+    assert!(state.any_modifier_down());
+  }
+
+  #[test]
+  fn one_stray_up_reading_does_not_release_a_held_key() {
+    let mut state = fresh_state();
+    let start = Instant::now();
+    press_combo(&mut state, start);
+    let _ = state.drain_actions();
+    let held = ModifierState {
+      ctrl: Sides { left: true, right: false },
+      shift: Sides { left: true, right: false },
+      ..ModifierState::default()
+    };
+    assert!(state.resync_released(all_up(), start + ms(1000)).is_empty());
+    assert!(state.resync_released(held, start + ms(1100)).is_empty());
+    assert!(state.resync_released(all_up(), start + ms(1200)).is_empty());
+    state.handle_tick(start + ms(2000));
+    assert!(state.drain_actions().is_empty());
+  }
+
+  #[test]
+  fn a_shortcut_using_the_key_does_not_end_a_locked_recording() {
+    // macOS default: Right Option. Right Option+Left Arrow jumps a word.
+    let mut state = HotkeyState::new(Shortcut::parse("RightAlt").unwrap());
+    let start = Instant::now();
+    state.handle_event(KeyEvent::Press(Key::AltGr), start);
+    state.handle_event(KeyEvent::Release(Key::AltGr), start + ms(100));
+    state.handle_event(KeyEvent::Press(Key::AltGr), start + ms(250));
+    state.handle_event(KeyEvent::Release(Key::AltGr), start + ms(330));
+    assert_eq!(state.drain_actions(), vec![Action::Start, Action::Lock(1)]);
+    state.handle_event(KeyEvent::Press(Key::AltGr), start + ms(5000));
+    state.handle_event(KeyEvent::Press(Key::LeftArrow), start + ms(5100));
+    state.handle_event(KeyEvent::Release(Key::AltGr), start + ms(5200));
+    state.handle_tick(start + ms(6000));
+    assert!(state.drain_actions().is_empty(), "word jump keeps recording");
+    // A plain press and release still ends it.
+    state.handle_event(KeyEvent::Press(Key::AltGr), start + ms(8000));
+    state.handle_event(KeyEvent::Release(Key::AltGr), start + ms(8080));
     assert_eq!(state.drain_actions(), vec![Action::Stop]);
   }
 
@@ -1744,10 +1902,11 @@ mod tests {
     state.handle_event(KeyEvent::Press(Key::ControlLeft), start + ms(6000));
     assert_eq!(state.drain_actions(), vec![]);
     state.handle_event(KeyEvent::Press(Key::ShiftLeft), start + ms(6010));
-    assert_eq!(state.drain_actions(), vec![Action::Stop]);
-    // The stop press's own release and the next press behave as from idle.
-    release_combo(&mut state, start + ms(6100));
+    // It stops when the stopping press comes up, in case it was a shortcut.
     assert_eq!(state.drain_actions(), vec![]);
+    release_combo(&mut state, start + ms(6100));
+    assert_eq!(state.drain_actions(), vec![Action::Stop]);
+    // The next press behaves as from idle.
     press_combo(&mut state, start + ms(7000));
     assert_eq!(state.drain_actions(), vec![Action::Start]);
   }
@@ -1856,6 +2015,7 @@ mod tests {
     let mut state = locked_state(start);
     state.release_lock(7);
     press_combo(&mut state, start + ms(1000));
+    release_combo(&mut state, start + ms(1100));
     assert_eq!(state.drain_actions(), vec![Action::Stop], "a stale id must not end the lock");
 
     let mut state = locked_state(start);
@@ -1974,9 +2134,10 @@ mod tests {
       state.drain_actions().into_iter().filter_map(|action| trace.observe_action(action, start)).collect();
     assert_eq!(lines, vec!["hotkey lock id=1"]);
     press_combo(&mut state, start + ms(9000));
+    release_combo(&mut state, start + ms(9100));
     let lines: Vec<String> =
-      state.drain_actions().into_iter().filter_map(|action| trace.observe_action(action, start + ms(9000))).collect();
-    assert_eq!(lines, vec!["hotkey stop held_ms=9000 mode=locked"]);
+      state.drain_actions().into_iter().filter_map(|action| trace.observe_action(action, start + ms(9100))).collect();
+    assert_eq!(lines, vec!["hotkey stop held_ms=9100 mode=locked"]);
   }
 
   #[test]
