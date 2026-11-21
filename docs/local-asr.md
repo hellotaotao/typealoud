@@ -106,6 +106,17 @@ have since been discarded. The figures in this section are what was kept from th
 - Nothing ships in the installer. Assets download on demand into `<app-data>/local-asr/`. For 0.6B
   that is `Qwen3-ASR-0.6B-Q8_0.gguf` (804,749,248 B) plus `mmproj-Qwen3-ASR-0.6B-Q8_0.gguf`
   (214,392,480 B), about 972 MB, plus the llama.cpp archive. The official repo has no Q4 variant.
+- Keep 1.7B at Q8_0. Measured 2026-11-20 on an M4 with the app's one-shot arguments: 200 real
+  dictation clips (200 different sessions, 46 min, 10,289 characters), the 1.7B language model
+  quantized from the official bf16 file with llama-quantize, the Q8_0 mmproj in every run. Character
+  difference from bf16 (punctuation and spaces ignored): Q8_0 0.24% (7 clips differ), Q5_K_M 0.66%
+  (20), Q4_K_M 0.99% (31). Peak RSS per decode: bf16 4.58 GB, Q8_0 2.77 GB, Q5_K_M 2.11 GB, Q4_K_M
+  1.93 GB; median wall time 2.08 / 1.46 / 1.32 / 1.27 s. On the first 40 clips the variants looked
+  equal; the larger set showed the cost. Q4_K_M lowercased the capital of a dozen names ("Mac" to
+  "mac", "Voiceley" to "voiceley"), turned 千问 into 万, and on one clip where bf16 and Q8_0 both heard 他是个很善良的人
+  it wrote an unrelated sentence about 西游记; Q5_K_M invented a different sentence on the same clip.
+  An invented sentence is the worst failure for dictation, so neither saves enough memory to be worth
+  it. 0.6B was not tested at lower bits.
 - Downloads resume with HTTP Range, keep the `.part` file on cancel, and are sha256-checked. The app
   fetches the archive itself, so there is no quarantine attribute and Gatekeeper never prompts.
 - The extracted runtime is stamped with its archive's sha256
