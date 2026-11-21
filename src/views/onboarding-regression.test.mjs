@@ -263,7 +263,7 @@ test("compact practice summary reflects verified state and applicable platform s
   assert.equal(summary.children.length,0);
 });
 
-test("the shortcut step gates Next on a detected press and the tester runs only on that step or Settings", async () => {
+test("the shortcut step gates Next on a detected press and the tester runs only on that step, Settings or the shortcut prompt", async () => {
   assert.match(extract("obStepSatisfied"),/step === "shortcut"\) return !!obShortcutPicker\?\.passed/);
   assert.match(extract("renderObFooter"),/"accessibility", "shortcut"\]/);
   const invoked=[];
@@ -271,6 +271,7 @@ test("the shortcut step gates Next on a detected press and the tester runs only 
   const context=vm.createContext({
     document:{getElementById:id=>pages[id]},hotkeyProbeOn:false,obCurrent:"shortcut",visible:true,
     onboardingVisible:()=>context.visible,ipc:{invoke:async(...args)=>invoked.push(args)},console,Promise,
+    intro:false,shortcutIntroVisible:()=>context.intro,
   });
   vm.runInContext(extract("syncHotkeyProbe").replace("let hotkeyProbeOn = false;",""),context);
   context.syncHotkeyProbe();
@@ -280,5 +281,12 @@ test("the shortcut step gates Next on a detected press and the tester runs only 
   context.visible=false;
   pages["settings-page"].classList.contains=()=>true;
   context.syncHotkeyProbe();
-  assert.deepEqual(invoked,[["set-hotkey-probe",true],["set-hotkey-probe",false],["set-hotkey-probe",true]]);
+  pages["settings-page"].classList.contains=()=>false;
+  context.syncHotkeyProbe();
+  context.intro=true;
+  context.syncHotkeyProbe();
+  assert.deepEqual(invoked,[
+    ["set-hotkey-probe",true],["set-hotkey-probe",false],["set-hotkey-probe",true],
+    ["set-hotkey-probe",false],["set-hotkey-probe",true],
+  ]);
 });

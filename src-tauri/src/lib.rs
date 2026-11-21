@@ -232,7 +232,9 @@ pub fn run() {
         glass::install_main_backdrop(&window);
       }
 
-      if !config.start_minimized {
+      // The one-time shortcut prompt lives in the main window, so it opens even
+      // for an install set to start hidden.
+      if !config.start_minimized || settings::shortcut_prompt_due(&config) {
         if let Some(window) = app.get_webview_window("main") {
           let _ = window.show();
           let _ = window.set_focus();
@@ -296,6 +298,7 @@ pub fn run() {
       commands::set_usage_stats,
       commands::set_record_shortcut,
       commands::set_hotkey_probe,
+      commands::dismiss_shortcut_prompt,
       commands::record_onboarding_step,
       commands::get_usage_preview,
       commands::save_onboarding_api_key,

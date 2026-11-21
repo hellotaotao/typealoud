@@ -160,6 +160,9 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
   (`Ctrl+Meta`) or one right-hand Ctrl/Alt/Meta (`RightAlt`); left and right keys are told apart
   (macOS through the device-dependent flag bits). New installs get `RightAlt` on macOS, `Ctrl+Meta`
   on Windows and `Ctrl+Shift` on Linux (`settings::new_install_shortcut`); saved configs keep theirs.
+  On macOS and Windows an install still on one of the two original shortcuts (`Ctrl+Shift`,
+  `Ctrl+Alt`) is shown the picker once in the main window (`settings::shortcut_prompt_due`);
+  picking a key or closing it sets `shortcut_prompt_seen`.
   It emits start/stop/cancel events. While the shortcut tester is open (`set_hotkey_probe`, the
   onboarding shortcut step and Settings) and the main window has focus, gestures go to the
   `hotkey-probe` event instead of recording. `STOP_DEBOUNCE` (250 ms) absorbs an accidental

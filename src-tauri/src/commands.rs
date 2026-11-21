@@ -658,6 +658,8 @@ pub fn set_record_shortcut(
   log::info!("command:set_record_shortcut shortcut={canonical}");
   let config = settings::mutate_config(|config| {
     config.shortcut = canonical.clone();
+    // A key picked in the picker is a choice: no need to offer it again.
+    config.shortcut_prompt_seen = true;
     Ok(())
   })
   .map_err(stringify_error)?;
@@ -666,6 +668,18 @@ pub fn set_record_shortcut(
   }
   broadcast_settings_updates(&app, &config).map_err(stringify_error)?;
   Ok(canonical)
+}
+
+/// The one-time "new shortcuts" prompt was closed, whether or not the key changed.
+#[tauri::command]
+pub fn dismiss_shortcut_prompt() -> Result<bool, String> {
+  log::info!("command:dismiss_shortcut_prompt");
+  settings::mutate_config(|config| {
+    config.shortcut_prompt_seen = true;
+    Ok(())
+  })
+  .map_err(stringify_error)?;
+  Ok(true)
 }
 
 // While the shortcut tester is open, presses made in the main window light up

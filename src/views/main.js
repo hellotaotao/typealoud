@@ -108,6 +108,8 @@ async function initializeMainPage() {
   // wizard. Strictly `=== false` so a settings-load error doesn't flash it.
   if (cachedSettings?.onboardingCompleted === false) {
     showOnboarding();
+  } else if (cachedSettings?.shortcutPromptDue) {
+    showShortcutIntro();
   }
 }
 
@@ -224,6 +226,10 @@ function bindEvents() {
   });
 
   ipc.on("hotkey-probe", (_event, payload) => {
+    if (shortcutIntroVisible()) {
+      shortcutIntroPicker?.handleProbe(payload);
+      return;
+    }
     if (!onboardingVisible() || obCurrent !== "shortcut" || !obShortcutPicker) return;
     obShortcutPicker.handleProbe(payload);
     renderObFooter();
@@ -247,6 +253,7 @@ function bindEvents() {
     if (onboardingVisible()) {
       renderOnboarding();
     }
+    if (shortcutIntroVisible()) renderShortcutIntro();
   });
 
   ipc.on("ui-theme-updated", (_event, payload) => {
@@ -311,6 +318,7 @@ async function refreshReadiness() {
   if (!axWasGranted && axOk) {
     obScheduleAdvance("accessibility");
   }
+  if (shortcutIntroVisible()) renderShortcutIntro();
   if (onboardingVisible()) {
     renderObAx();
     renderObLocal();
@@ -1340,7 +1348,7 @@ function renderOnboarding() {
 let hotkeyProbeOn = false;
 function syncHotkeyProbe() {
   const settingsShown = !onboardingVisible() && !!document.getElementById("settings-page")?.classList.contains("active");
-  const wanted = (onboardingVisible() && obCurrent === "shortcut") || settingsShown;
+  const wanted = (onboardingVisible() && obCurrent === "shortcut") || settingsShown || shortcutIntroVisible();
   if (wanted === hotkeyProbeOn) return;
   hotkeyProbeOn = wanted;
   void Promise.resolve(ipc.invoke("set-hotkey-probe", wanted)).catch((error) => {
@@ -1372,6 +1380,94 @@ function renderObShortcut() {
   // Each visit starts a fresh test, so the "nothing detected" hint times from now.
   if (obCurrent === "shortcut" && obRenderedStep !== "shortcut") obShortcutPicker.restartTest();
   obRenderedStep = obCurrent;
+}
+
+// The one-time prompt for an install still on one of the two original
+// shortcuts. Unlike the wizard's shortcut page it opens on the key the user
+// already has, marks it, needs no test to close, and names the change instead
+// of assuming a first choice. Closing it, or picking a key, means it never
+// returns (`shortcut_prompt_seen`).
+let shortcutIntroPicker = null;
+let shortcutIntroUsual = "";
+
+function shortcutIntroVisible() {
+  const dialog = document.getElementById("shortcutIntro");
+  return !!dialog && !dialog.hidden;
+}
+
+function showShortcutIntro() {
+  const dialog = document.getElementById("shortcutIntro");
+  const host = document.getElementById("shortcutIntroPicker");
+  if (!dialog || !host || !window.TypeAloudShortcuts) return;
+  shortcutIntroUsual = cachedSettings?.shortcut || "Ctrl+Shift";
+  if (!shortcutIntroPicker) {
+    shortcutIntroPicker = window.TypeAloudShortcuts.createPicker({
+      os: cachedSettings?.os,
+      translate: t,
+      usualValue: shortcutIntroUsual,
+      onSelect: async (value) => {
+        const saved = await ipc.invoke("set-record-shortcut", value);
+        if (cachedSettings) {
+          cachedSettings.shortcut = saved;
+          cachedSettings.shortcutPromptDue = false;
+        }
+        renderShortcutIntro();
+        return saved;
+      },
+    });
+    host.replaceChildren(shortcutIntroPicker.element);
+    document.getElementById("shortcutIntroDone")?.addEventListener("click", () => void closeShortcutIntro());
+    document.getElementById("shortcutIntroAxBtn")?.addEventListener("click", () => void startAccessibilityFlow());
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") void closeShortcutIntro();
+    });
+  }
+  dialog.hidden = false;
+  shortcutIntroPicker.setValue(shortcutIntroUsual);
+  shortcutIntroPicker.restartTest();
+  renderShortcutIntro();
+  syncHotkeyProbe();
+  document.getElementById("shortcutIntroDone")?.focus();
+}
+
+function renderShortcutIntro() {
+  if (!shortcutIntroPicker) return;
+  const os = cachedSettings?.os;
+  const shortcuts = window.TypeAloudShortcuts;
+  const label = (value) => shortcuts.label(value, os, t);
+  const current = cachedSettings?.shortcut || shortcutIntroUsual;
+  const platform = os === "windows" ? "windows" : "macos";
+  const suggested = shortcuts.options(os).find((option) => option.recommended)?.value || current;
+  document.getElementById("shortcutIntroTitle").textContent = t(`shortcutIntro.title.${platform}`);
+  document.getElementById("shortcutIntroLead").textContent = t(`shortcutIntro.lead.${platform}`, {
+    keys: label(shortcutIntroUsual),
+    suggested: label(suggested),
+  });
+  document.getElementById("shortcutIntroDone").textContent = current === shortcutIntroUsual
+    ? t("shortcutIntro.keep", { keys: label(current) })
+    : t("shortcutIntro.use", { keys: label(current) });
+  applyI18n(document.getElementById("shortcutIntro"));
+  shortcutIntroPicker.refresh();
+  // obAxGranted is re-read from the system on every readiness refresh
+  // (startup, window focus, the grant flow), not remembered from onboarding.
+  const axMissing = obSteps().includes("accessibility") && !obAxGranted;
+  document.getElementById("shortcutIntroAx").hidden = !axMissing;
+  document.getElementById("shortcutIntro").classList.toggle("ax-missing", axMissing);
+  shortcutIntroPicker.setUnavailable(axMissing ? "shortcut.test.axNeeded" : "");
+}
+
+async function closeShortcutIntro() {
+  const dialog = document.getElementById("shortcutIntro");
+  if (!dialog || dialog.hidden) return;
+  dialog.hidden = true;
+  syncHotkeyProbe();
+  if (cachedSettings) cachedSettings.shortcutPromptDue = false;
+  void refreshReadiness();
+  try {
+    await ipc.invoke("dismiss-shortcut-prompt");
+  } catch (error) {
+    console.error("Failed to record the shortcut prompt as seen:", error);
+  }
 }
 
 // Each step is counted once per install (usage.rs dedupes); this set only

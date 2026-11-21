@@ -116,7 +116,9 @@
   // A list of shortcut cards with a tester under it. The owner saves the
   // choice (`onSelect`, which resolves to the stored value) and forwards the
   // backend's `hotkey-probe` events while the tester is the visible one.
-  function createPicker({ os, translate, onSelect }) {
+  // `usualValue` (optional) marks the key the user had before this picker
+  // opened and keeps its card in view, so switching back is one click.
+  function createPicker({ os, translate, onSelect, usualValue = "" }) {
     const platform = normalizeOs(os);
     const root = document.createElement("div");
     root.className = "shortcut-picker";
@@ -178,6 +180,12 @@
         tag.textContent = translate("shortcut.recommended");
         keys.appendChild(tag);
       }
+      if (usualValue && option.value === usualValue) {
+        const tag = document.createElement("span");
+        tag.className = "shortcut-option-tag shortcut-option-tag-usual";
+        tag.textContent = translate("shortcut.usual");
+        keys.appendChild(tag);
+      }
       button.appendChild(keys);
       if (option.note) {
         const note = document.createElement("span");
@@ -213,6 +221,10 @@
         kbd.textContent = withSide(keyName(key, platform, true), right, translate);
         return kbd;
       }));
+      // Without the permission no key can be heard, so showing the chosen
+      // key's caps would make the warning read as being about that key.
+      caps.hidden = !!unavailableKey;
+      tester.classList.toggle("unavailable", !!unavailableKey);
       tester.classList.toggle("held", test.held);
       tester.classList.toggle("passed", test.passed);
       let key = `shortcut.test.${test.phase}`;
@@ -223,8 +235,9 @@
 
     function render() {
       const entries = options(platform, current);
-      const main = entries.filter((option) => !option.more || option.value === current);
-      const extra = entries.filter((option) => option.more && option.value !== current);
+      const inView = (option) => !option.more || option.value === current || option.value === usualValue;
+      const main = entries.filter(inView);
+      const extra = entries.filter((option) => !inView(option));
       const signature = `${main.map((option) => option.value).join("|")}/${extra.map((option) => option.value).join("|")}`;
       if (root.dataset.options !== signature) {
         root.dataset.options = signature;

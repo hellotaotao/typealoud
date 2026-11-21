@@ -156,6 +156,30 @@
     </div>
   </div>
 
+  <!-- Shown once to an existing install still on one of the two original
+       record shortcuts (settings.shortcutPromptDue): what's new, the picker
+       with the old key marked, and one button that closes it. Copy is filled
+       by main.js because it names the user's keys. -->
+  <div id="shortcutIntro" class="shortcut-intro" role="dialog" aria-modal="true" aria-labelledby="shortcutIntroTitle" hidden>
+    <div class="shortcut-intro-card">
+      <div class="ob-hero-icon"><span class="material-icons" aria-hidden="true">keyboard</span></div>
+      <h1 id="shortcutIntroTitle"></h1>
+      <p class="ob-lead" id="shortcutIntroLead"></p>
+      <!-- Only while Accessibility is missing (macOS): no key can be heard,
+           so the tester is hidden and this says so for every key. -->
+      <div class="shortcut-intro-ax" id="shortcutIntroAx" hidden>
+        <span class="material-icons" aria-hidden="true">lock_open</span>
+        <span data-i18n="shortcutIntro.axMissing">TypeAloud doesn't have Accessibility permission right now.</span>
+        <button type="button" class="btn-secondary" id="shortcutIntroAxBtn" data-i18n="shortcutIntro.axOpen">Turn on Accessibility</button>
+      </div>
+      <div id="shortcutIntroPicker"></div>
+      <div class="shortcut-intro-footer">
+        <span class="shortcut-intro-later" data-i18n="shortcutIntro.later">You can change it any time in Settings.</span>
+        <button type="button" class="btn" id="shortcutIntroDone"></button>
+      </div>
+    </div>
+  </div>
+
   <div class="sidebar">
     <div class="sidebar-header">
       <div class="logo">TypeAloud</div>

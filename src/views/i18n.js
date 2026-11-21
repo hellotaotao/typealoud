@@ -118,6 +118,7 @@
         recommended: "Recommended",
         moreCombos: "More combinations",
         lessCombos: "Fewer combinations",
+        usual: "Your key so far",
         notes: {
           rightAlt: "One hand. On its own it does nothing else in macOS.",
           rightMeta: "One hand. ⌘ starts many shortcuts, so ⌘C and the like briefly open the recording window.",
@@ -137,8 +138,23 @@
           done: "All set — hold to talk, or tap twice for hands-free.",
           tooShort: "That was a quick tap. Hold the keys down a little longer.",
           interrupted: "Another key was pressed in between. Try the shortcut on its own.",
-          axNeeded: "The shortcut needs Accessibility permission. Turn it on first, then test it here.",
+          axNeeded: "Accessibility permission is off, so no shortcut works yet. Turn it on, then test here.",
         },
+      },
+      shortcutIntro: {
+        title: {
+          macos: "You can now dictate with one key",
+          windows: "More choices for your dictation key",
+        },
+        lead: {
+          macos: "You've been holding {keys} to dictate. You can now use a single key instead, such as {suggested}. Pick one below and try it, or keep the one you have.",
+          windows: "You've been holding {keys} to dictate. There are now other keys to choose from, such as {suggested}. Pick one below and try it, or keep the one you have.",
+        },
+        keep: "Keep {keys}",
+        use: "Use {keys}",
+        later: "You can change it any time in Settings.",
+        axMissing: "Accessibility permission is off, so no shortcut works right now.",
+        axOpen: "Turn on Accessibility",
       },
       onboarding: {
         start: "Get started",
@@ -782,6 +798,7 @@
         recommended: "推荐",
         moreCombos: "更多组合",
         lessCombos: "收起",
+        usual: "一直在用",
         notes: {
           rightAlt: "一只手就能按，单独按下时 macOS 没有别的动作。",
           rightMeta: "一只手就能按。⌘ 组合键用得多，按 ⌘C 这类组合时录音窗会闪一下。",
@@ -801,8 +818,23 @@
           done: "都会用了：按住说话，或者按两下免提录音。",
           tooShort: "刚才只是轻点了一下，按住久一点试试。",
           interrupted: "中途按了别的键，单独按住它试试。",
-          axNeeded: "快捷键需要辅助功能权限。先开启权限，再回来这里测试。",
+          axNeeded: "辅助功能权限没开，所有快捷键暂时都用不了。开启后再来这里测试。",
         },
+      },
+      shortcutIntro: {
+        title: {
+          macos: "现在一个键就能说话",
+          windows: "说话键有了更多选择",
+        },
+        lead: {
+          macos: "你一直按 {keys} 说话。现在也可以只用一个键，比如 {suggested}。在下面选一个试试，不想换就保持原样。",
+          windows: "你一直按 {keys} 说话。现在可以换成别的键，比如 {suggested}。在下面选一个试试，不想换就保持原样。",
+        },
+        keep: "保持 {keys}",
+        use: "就用 {keys}",
+        later: "以后可以随时在设置里更改。",
+        axMissing: "辅助功能权限没开，所有快捷键暂时都用不了。",
+        axOpen: "开启辅助功能权限",
       },
       onboarding: {
         start: "开始",

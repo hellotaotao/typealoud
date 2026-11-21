@@ -122,6 +122,10 @@ pub struct AppConfig {
   pub local_compute: String,
   #[serde(default)]
   pub onboarding_completed: bool,
+  /// Set once the user has picked a record shortcut in the picker or closed the
+  /// one-time "new shortcuts" prompt; see `shortcut_prompt_due`.
+  #[serde(default)]
+  pub shortcut_prompt_seen: bool,
   /// The Qwen size last used ("qwen3-asr-0.6b-q8_0" | "qwen3-asr-1.7b-q8_0"),
   /// so switching back to Qwen from a cloud engine returns to it. Empty means
   /// the default size. Kept up to date by `remember_qwen_model`.
@@ -158,6 +162,7 @@ impl Default for AppConfig {
       nemotron_latency_ms: default_nemotron_latency_ms(),
       local_compute: default_local_compute(),
       onboarding_completed: false,
+      shortcut_prompt_seen: false,
       qwen_model: String::new(),
       usage_stats: default_usage_stats(),
       debug_save_audio: false,
@@ -225,6 +230,9 @@ pub struct SettingsPayload {
   /// Whether the first-launch onboarding wizard has been completed (or skipped).
   /// The main window shows the wizard while this is false.
   pub onboarding_completed: bool,
+  /// Whether the main window should offer the shortcut picker once, for an
+  /// existing install still on one of the two original shortcuts.
+  pub shortcut_prompt_due: bool,
   /// Whether local engines are offered on this build. This remains independent
   /// of model download state and the hardware recommendation in local_tier.
   pub local_capable: bool,
@@ -279,6 +287,7 @@ impl SettingsPayload {
       os: std::env::consts::OS.to_string(),
       is_dev: cfg!(debug_assertions),
       onboarding_completed: config.onboarding_completed,
+      shortcut_prompt_due: shortcut_prompt_due(config),
       local_capable: crate::platform::supports_local_first(),
       local_tier: crate::hardware::local_tier(),
       qwen_model: preferred_qwen_model(config).into(),
@@ -359,6 +368,27 @@ pub fn read_config() -> Result<AppConfig> {
 
 pub fn read_config_from_path(path: &Path) -> Result<AppConfig> {
   read_config_from_path_with_tier(path, crate::hardware::local_tier())
+}
+
+/// The only two record shortcuts Settings offered before right-hand single keys
+/// arrived (2026-11-17). An install still on one of them never really chose it,
+/// so it is shown the shortcut picker once after updating. Nobody's shortcut
+/// changes by itself: saved configs keep theirs.
+const ORIGINAL_SHORTCUTS: &[&str] = &["Ctrl+Shift", "Ctrl+Alt"];
+
+/// macOS and Windows got new recommended keys; Linux kept Ctrl+Shift.
+pub fn shortcut_prompt_due(config: &AppConfig) -> bool {
+  shortcut_prompt_due_on(cfg!(any(target_os = "macos", target_os = "windows")), config)
+}
+
+fn shortcut_prompt_due_on(platform_has_new_keys: bool, config: &AppConfig) -> bool {
+  if !platform_has_new_keys || !config.onboarding_completed || config.shortcut_prompt_seen {
+    return false;
+  }
+  // An unreadable saved shortcut falls back to the default, as the listener does.
+  let canonical = |value: &str| crate::hotkey::Shortcut::parse(value).map(|shortcut| shortcut.canonical());
+  let current = canonical(&config.shortcut).or_else(|| canonical(DEFAULT_RECORD_SHORTCUT));
+  ORIGINAL_SHORTCUTS.iter().any(|original| canonical(original) == current)
 }
 
 /// The record shortcut a new install starts with. macOS: the right Option key,
@@ -828,6 +858,28 @@ mod tests {
     assert_eq!(config.dictionary, "alpha");
     assert_eq!(config.ui_theme, "midnight");
     std::fs::remove_file(path).unwrap();
+  }
+
+  #[test]
+  fn shortcut_prompt_is_due_once_for_installs_on_an_original_shortcut() {
+    let mut config = AppConfig::default();
+    config.onboarding_completed = true;
+    for shortcut in ["Ctrl+Shift", "shift+ctrl", "Ctrl+Alt", ""] {
+      config.shortcut = shortcut.into();
+      assert!(shortcut_prompt_due_on(true, &config), "{shortcut:?}");
+    }
+    config.shortcut = "Ctrl+Shift".into();
+    assert!(!shortcut_prompt_due_on(false, &config), "Linux kept Ctrl+Shift");
+    for shortcut in ["RightAlt", "Ctrl+Meta", "RightCtrl"] {
+      config.shortcut = shortcut.into();
+      assert!(!shortcut_prompt_due_on(true, &config), "{shortcut:?} was already chosen");
+    }
+    config.shortcut = "Ctrl+Shift".into();
+    config.shortcut_prompt_seen = true;
+    assert!(!shortcut_prompt_due_on(true, &config), "shown once");
+    config.shortcut_prompt_seen = false;
+    config.onboarding_completed = false;
+    assert!(!shortcut_prompt_due_on(true, &config), "onboarding has its own shortcut step");
   }
 
   #[test]

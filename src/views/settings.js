@@ -1902,6 +1902,7 @@ function setupShortcutSync() {
   ipc.on("hotkey-probe", (_event, payload) => {
     if (!document.getElementById("settings-page")?.classList.contains("active")) return;
     if (!document.getElementById("onboarding")?.hidden) return;
+    if (!document.getElementById("shortcutIntro")?.hidden) return;
     shortcutPicker?.handleProbe(payload);
   });
 }

@@ -1209,6 +1209,122 @@ body {
   color: var(--pill-ok-text);
 }
 
+/* One-time shortcut prompt for existing installs: a dialog over the main
+   window that reuses the onboarding card look and the shortcut picker. The
+   card stacks its translucent panel over the app gradient so it stays opaque
+   on top of the scrim. */
+.shortcut-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 4900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(6px);
+}
+
+.shortcut-intro[hidden] {
+  display: none;
+}
+
+.shortcut-intro-card {
+  box-sizing: border-box;
+  width: 600px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 34px 40px 26px;
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  background: linear-gradient(var(--panel-bg-strong), var(--panel-bg-strong)), var(--app-bg);
+  box-shadow: var(--card-shadow);
+}
+
+.shortcut-intro-card .ob-hero-icon {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 18px;
+}
+
+.shortcut-intro-card .ob-hero-icon .material-icons {
+  font-size: 26px;
+}
+
+.shortcut-intro-card h1 {
+  font-size: 23px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.shortcut-intro-card .ob-lead {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.shortcut-intro-card .shortcut-picker {
+  margin-top: 18px;
+}
+
+.shortcut-intro-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.shortcut-intro-later {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.shortcut-intro-footer .btn {
+  padding: 10px 22px;
+}
+
+.shortcut-intro-ax {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--pill-warn-bg, var(--accent-soft-bg));
+  color: var(--pill-warn-text, var(--app-text));
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.shortcut-intro-ax[hidden] {
+  display: none;
+}
+
+.shortcut-intro-ax .material-icons {
+  font-size: 20px;
+  flex: none;
+}
+
+.shortcut-intro-ax .btn-secondary {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Nothing to test until the permission is back. */
+.shortcut-intro.ax-missing .shortcut-tester {
+  display: none;
+}
+
+.shortcut-tester.unavailable {
+  border-style: dashed;
+}
+
+.shortcut-option-tag-usual {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--panel-border-strong);
+  color: var(--text-soft);
+}
+
 /* Page 5: provider + key */
 .ob-providers {
   display: flex;

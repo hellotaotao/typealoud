@@ -66,6 +66,7 @@
     "set-usage-stats": "set_usage_stats",
     "set-record-shortcut": "set_record_shortcut",
     "set-hotkey-probe": "set_hotkey_probe",
+    "dismiss-shortcut-prompt": "dismiss_shortcut_prompt",
     "record-onboarding-step": "record_onboarding_step",
     "get-usage-preview": "get_usage_preview",
     "save-onboarding-api-key": "save_onboarding_api_key",
