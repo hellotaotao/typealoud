@@ -213,6 +213,10 @@ body {
   margin: 12px 10px 0 10px;
 }
 
+.nav-item[hidden] {
+  display: none;
+}
+
 .nav-item {
   display: flex;
   align-items: center;

@@ -20,6 +20,13 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 
+/// Whether the Files page is reachable. Only in `tauri dev` builds until its
+/// interface has been polished and tested on real machines: every packaged
+/// build hides the sidebar entry (`SettingsPayload::files_page_enabled`) and
+/// ignores drops on the main window, so nothing can start a file job there.
+/// The code stays built and tested.
+pub const PAGE_ENABLED: bool = cfg!(debug_assertions);
+
 pub const SAMPLE_RATE: usize = 16_000;
 const FRAME: usize = 320; // 20 ms at 16 kHz
 const FRAMES_PER_SEC: usize = SAMPLE_RATE / FRAME;

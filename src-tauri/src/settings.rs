@@ -230,6 +230,8 @@ pub struct SettingsPayload {
   /// Whether the first-launch onboarding wizard has been completed (or skipped).
   /// The main window shows the wizard while this is false.
   pub onboarding_completed: bool,
+  /// Whether the sidebar shows the Files page (`file_transcription::PAGE_ENABLED`).
+  pub files_page_enabled: bool,
   /// Whether the main window should offer the shortcut picker once, for an
   /// existing install still on one of the two original shortcuts.
   pub shortcut_prompt_due: bool,
@@ -287,6 +289,7 @@ impl SettingsPayload {
       os: std::env::consts::OS.to_string(),
       is_dev: cfg!(debug_assertions),
       onboarding_completed: config.onboarding_completed,
+      files_page_enabled: crate::file_transcription::PAGE_ENABLED,
       shortcut_prompt_due: shortcut_prompt_due(config),
       local_capable: crate::platform::supports_local_first(),
       local_tier: crate::hardware::local_tier(),

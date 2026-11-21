@@ -182,7 +182,11 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 - `history.rs` — the History store (`{ "activities": [...] }`, 200-entry `HISTORY_CAP`, atomic
   writes), including pending audio.
 - `retry_error.rs` — typed registry of the persisted `RETRY_*` codes.
-- `file_transcription.rs` — the Files page: decodes a dropped or picked audio/video file
+- `file_transcription.rs` — the Files page, **hidden in packaged builds for now** (`PAGE_ENABLED`
+  is on only under `tauri dev`: otherwise no sidebar entry and window drops are ignored) until its
+  interface is polished and tested. Turning it on also means
+  restoring its line in `PRIVACY.md` (file audio goes to the cloud engine in ≤ 40 s segments). It
+  decodes a dropped or picked audio/video file
   (Symphonia, resampled to 16 kHz mono with rubato), cuts it into segments and sends each one to the
   engine in use when the file was added (`FileEngine` in `commands.rs`). **Invariants:**
   - Segments end at every pause of 1 s or more and never run past 40 s. Qwen keeps one language per

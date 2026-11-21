@@ -117,7 +117,7 @@ pub fn run() {
       // The webview never sees file drops (Tauri handles them natively), so
       // the main window's drops reach the Files page as events. Paths stay
       // inside the app: the page hands them straight back to transcribe_files.
-      if window.label() == "main" {
+      if window.label() == "main" && file_transcription::PAGE_ENABLED {
         if let WindowEvent::DragDrop(drop) = event {
           use tauri::{DragDropEvent, Emitter};
           match drop {

@@ -71,6 +71,8 @@ async function initializeMainPage() {
   }
 
   initI18n(cachedSettings?.uiLanguage);
+  const filesNav = document.querySelector('.nav-item[data-page="files"]');
+  if (filesNav) filesNav.hidden = cachedSettings?.filesPageEnabled !== true;
   applyTheme(cachedSettings?.uiTheme);
 
   await loadActivities();
