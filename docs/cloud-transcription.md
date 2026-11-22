@@ -62,7 +62,7 @@ by one from context; only wrong words count, not numeral style ("110万" vs "一
 | Model | Wrong words in the 27 clips | Median latency | Price per audio hour | Notes |
 |---|---|---|---|---|
 | `microsoft/mai-transcribe-2` | ~7 | 1.2 s | ~$0.10 | Masks profanity by default (`**`); `provider.options.azure.profanityFilterMode: "None"` turns it off. Marks repetitions with hyphens ("你-你-你") |
-| `elevenlabs/scribe-v2` | ~8 | 1.8 s | ~$0.22 | Adds sound tags ("[咂嘴]") and "——"/"……"; also uses repetition hyphens |
+| `elevenlabs/scribe-v2` | ~8 | 1.8 s | ~$0.22 | Adds sound tags ("[咂嘴]") by default; `provider.options.elevenlabs.tag_audio_events: false` turns them off. Also uses "——"/"……" and repetition hyphens |
 | `openai/gpt-transcribe` | ~11 | 1.5 s | ~$0.28 | The model behind today's OpenAI option; once flipped a meaning ("我们有必要" → "我没有必要") |
 | `qwen/qwen3-asr-1.7b` | ~12 | 1.8 s | ~$0.027 | Same output as the local 1.7B (0.6 % apart). In the first run 11 of 40 requests took 15–28 s; reruns and a test after a night idle stayed under 3 s |
 | `qwen/qwen3-asr-0.6b` | ~13 | 1.5 s | ~$0.012 | Close to 1.7B |
@@ -71,6 +71,7 @@ by one from context; only wrong words count, not numeral style ("110万" vs "一
 
 Notes for building it: the request takes `provider: {"order": [...], "allow_fallbacks": ...}` (honoured
 in multipart too; Qwen 1.7B is served by PrimeIntellect and DeepInfra at the same price), and Azure
-forwards `provider.options.azure.*` as-is. The maintainer's calls: masking or changing words is not
-acceptable, and the hyphens count as changed text, so they would need removing between CJK
-characters; Scribe's sound tags are acceptable, even welcome. The whole run cost about $0.13.
+forwards `provider.options.azure.*` as-is (ElevenLabs options pass the same way). The maintainer's
+calls: masking or changing words is not acceptable, so MAI needs `profanityFilterMode: "None"`;
+sound tags don't belong in dictated text, so Scribe needs `tag_audio_events: false`; hyphens at
+repetitions and self-corrections are fine and stay. The whole run cost about $0.13.
