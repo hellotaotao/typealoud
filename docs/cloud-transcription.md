@@ -101,5 +101,5 @@ as "So you know, uh, in the horse racing, actually, they also hire a lot of actu
 costs 40 tokens in one clip. Scribe's losses on Chinese-only clips are fillers: it writes 嗯 as 呃,
 adds "……"/"——", and twice dropped or swapped a word ("之类的" → "这类"). On read speech all three
 are within half a point. None returned traditional characters. All 150 requests succeeded, at about
-$0.10 in total.
+$0.12 in total.
 
