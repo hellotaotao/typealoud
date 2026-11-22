@@ -49,3 +49,28 @@ trims audio to 300 ms before the first and 450 ms after the last speech segment 
 `scrub.rs` strips known boilerplate families and seed-prompt leaks, returning empty text when the
 whole output is boilerplate (`5882e78`). Further options, such as segment-level `verbose_json`
 filtering, are parked in TODO.md #10.
+
+## OpenRouter candidates (measured 2026-11-22/23)
+
+Context: issue #21 suggested OpenRouter, and the plan is to replace Groq with it (see
+`docs/PRODUCT_PATHWAY.md`). Seven speech-to-text models went through
+`POST https://openrouter.ai/api/v1/audio/transcriptions` on 40 real dictations from the maintainer's
+own machine (40 sessions, 3–60 s each, about 9 minutes, mostly Chinese with English terms). There is
+no hand-checked transcript, so the 27 clips where the leading candidates disagreed were judged one
+by one from context; only wrong words count, not numeral style ("110万" vs "一百一十万") or punctuation.
+
+| Model | Wrong words in the 27 clips | Median latency | Price per audio hour | Notes |
+|---|---|---|---|---|
+| `microsoft/mai-transcribe-2` | ~7 | 1.2 s | ~$0.10 | Masks profanity by default (`**`); `provider.options.azure.profanityFilterMode: "None"` turns it off. Marks repetitions with hyphens ("你-你-你") |
+| `elevenlabs/scribe-v2` | ~8 | 1.8 s | ~$0.22 | Adds sound tags ("[咂嘴]") and "——"/"……"; also uses repetition hyphens |
+| `openai/gpt-transcribe` | ~11 | 1.5 s | ~$0.28 | The model behind today's OpenAI option; once flipped a meaning ("我们有必要" → "我没有必要") |
+| `qwen/qwen3-asr-1.7b` | ~12 | 1.8 s | ~$0.027 | Same output as the local 1.7B (0.6 % apart). In the first run 11 of 40 requests took 15–28 s; reruns and a test after a night idle stayed under 3 s |
+| `qwen/qwen3-asr-0.6b` | ~13 | 1.5 s | ~$0.012 | Close to 1.7B |
+| `openai/whisper-large-v3-turbo` | far more | 2.0 s | ~$0.015 | Groq's model: no punctuation in 30 of 40, traditional characters, an invented "谢谢大家" |
+| `nvidia/nemotron-3.5-transcribe` | unusable | — | ~$0.066 | Translates Chinese into English, or writes pinyin, even with `language: zh` |
+
+Notes for building it: the request takes `provider: {"order": [...], "allow_fallbacks": ...}` (honoured
+in multipart too; Qwen 1.7B is served by PrimeIntellect and DeepInfra at the same price), and Azure
+forwards `provider.options.azure.*` as-is. The maintainer's calls: masking or changing words is not
+acceptable, and the hyphens count as changed text, so they would need removing between CJK
+characters; Scribe's sound tags are acceptable, even welcome. The whole run cost about $0.13.
