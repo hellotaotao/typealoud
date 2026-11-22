@@ -103,3 +103,8 @@ adds "……"/"——", and twice dropped or swapped a word ("之类的" → "�
 are within half a point. None returned traditional characters. All 150 requests succeeded, at about
 $0.12 in total.
 
+
+Decision (2026-11-23): the OpenRouter option defaults to Qwen 1.7B (cheapest, same family as the
+local engine) and offers MAI-2 with `profanityFilterMode: "None"` as the more accurate choice.
+Scribe is left out: its lead on mixed speech is small next to MAI's, it is the weakest on
+Chinese-only speech, and it costs more than twice as much.
