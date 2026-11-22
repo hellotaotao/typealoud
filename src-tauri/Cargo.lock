@@ -5508,6 +5508,7 @@ version = "1.21.0"
 dependencies = [
  "anyhow",
  "arboard",
+ "base64 0.22.1",
  "chrono",
  "core-foundation 0.10.1",
  "cpal",

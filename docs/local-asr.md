@@ -48,11 +48,11 @@ file does not exist. Existing configs and serde defaults retain their compatibil
 
 | Profile | Tier | Fresh engine / onboarding placement |
 |---|---|---|
-| Known memory below 8 GiB or fewer than 4 logical cores | `cloud-default` | OpenAI `gpt-transcribe`; 0.6B remains available with a speed warning |
+| Known memory below 8 GiB or fewer than 4 logical cores | `cloud-default` | OpenRouter `qwen/qwen3-asr-1.7b`; 0.6B remains available with a speed warning |
 | Everything else | `qwen` | Qwen 0.6B |
 | Hardware detection fails | `qwen` | 0.6B; failure never selects cloud by itself |
 
-Onboarding never offers 1.7B; first run only chooses local or cloud. Groq and supported Nemotron
+Onboarding never offers 1.7B; first run only chooses local or cloud. OpenAI and supported Nemotron
 builds sit under "more" in onboarding, Home and Settings.
 
 ## Suggesting 1.7B from measured speed

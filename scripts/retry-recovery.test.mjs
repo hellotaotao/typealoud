@@ -63,8 +63,8 @@ test("automatic retry sends the recording provider snapshot through the real IPC
   const receiver = vm.runInContext("Object.create(VoiceInputPrompt.prototype)", context);
   receiver.waitForSessionStage = (_session, _stage, work) => work();
   receiver.isSessionCancelled = () => false;
-  for (const provider of ["local", "groq"]) {
-    receiver.currentProvider = provider === "local" ? "groq" : "local";
+  for (const provider of ["local", "openrouter"]) {
+    receiver.currentProvider = provider === "local" ? "openrouter" : "local";
     receiver.recordingSessions = new Map([[1, { provider, captureIncomplete: true }]]);
     assert.equal(await receiver.transcribeWithRetry(new Uint8Array([1]), "audio/wav", 1, provider), "words");
     const first = calls.at(-2)[2].headers;

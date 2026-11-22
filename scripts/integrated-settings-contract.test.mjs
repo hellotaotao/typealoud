@@ -57,7 +57,7 @@ test("settings are grouped by what the user came to do", () => {
   }
   assert.match(dictation, /id="providerSelect"/);
   const engines = sectionSource("settings-panel-dictation");
-  for (const id of ["providerSelect", "apiKeyGroq", "apiKeyOpenAI", "modelSelect", "nemotronLatencySelect", "localModelItem"]) {
+  for (const id of ["providerSelect", "apiKeyOpenRouter", "apiKeyOpenAI", "modelSelect", "nemotronLatencySelect", "localModelItem"]) {
     assert.match(engines, new RegExp(`id="${id}"`));
   }
 
@@ -314,10 +314,10 @@ test("settings markup contains no literal escaped newlines", () => {
   assert.ok(!mainHtml.includes("\\n"));
 });
 
-test("engine cards offer both Qwen sizes then OpenAI then Groq then Nemotron", () => {
+test("engine cards offer both Qwen sizes then OpenRouter then OpenAI then Nemotron", () => {
   const cards = settingsJs.match(/const ENGINE_CARDS = \[([\s\S]*?)\];/)?.[1] || "";
   const values = [...cards.matchAll(/value: ([^,]+)/g)].map((match) => match[1]);
-  assert.deepEqual(values, ["LOCAL_QWEN_PROVIDER", "LOCAL_QWEN_LARGE_PROVIDER", '"openai"', '"groq"', "LOCAL_NEMOTRON_PROVIDER"]);
+  assert.deepEqual(values, ["LOCAL_QWEN_PROVIDER", "LOCAL_QWEN_LARGE_PROVIDER", '"openrouter"', '"openai"', "LOCAL_NEMOTRON_PROVIDER"]);
 });
 
 test("settings groups keep their spacing", () => {
@@ -359,9 +359,9 @@ test("reference-style settings controls retain select-backed values", () => {
 test("cloud models explain cost and tradeoffs without a single-choice button", () => {
   assert.match(settingsJs, /function renderModelChoices/);
   assert.match(settingsJs, /options\.length === 1/);
-  assert.match(i18nJs, /\$0\.04/);
-  assert.match(i18nJs, /\$0\.111/);
-  assert.match(i18nJs, /modelTurboDetail/);
+  assert.match(i18nJs, /\$0\.03/);
+  assert.match(i18nJs, /\$0\.10/);
+  assert.match(i18nJs, /modelMaiDetail/);
   assert.match(settingsCss, /#engineAdvanced\s*\{[^}]*background:\s*transparent/);
 });
 

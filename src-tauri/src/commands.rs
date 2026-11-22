@@ -541,7 +541,7 @@ pub fn finish_qwen_worker_session(
 #[serde(rename_all = "camelCase")]
 pub struct ApiKeys {
   pub api_key: String,
-  pub api_key_groq: String,
+  pub api_key_openrouter: String,
   #[serde(rename = "apiKeyOpenAI")]
   pub api_key_openai: String,
 }
@@ -557,7 +557,7 @@ pub fn get_api_keys(window: tauri::WebviewWindow) -> Result<ApiKeys, String> {
   let config = settings::read_config().map_err(stringify_error)?;
   Ok(ApiKeys {
     api_key: config.api_key,
-    api_key_groq: config.api_key_groq,
+    api_key_openrouter: config.api_key_openrouter,
     api_key_openai: config.api_key_openai,
   })
 }
@@ -724,7 +724,7 @@ pub fn get_usage_preview() -> serde_json::Value {
 // Onboarding page 5: set the provider + its API key without round-tripping the
 // full config (keys flow INTO Rust only, never out to the main window). When
 // the provider actually changes, the model is reset to that provider's default
-// — otherwise a fresh config would send the OpenAI default model name to Groq.
+// — otherwise a fresh config would send the OpenAI default model name to OpenRouter.
 #[tauri::command]
 pub fn save_onboarding_api_key(
   app: AppHandle,
@@ -739,7 +739,7 @@ pub fn save_onboarding_api_key(
 
   let config = settings::mutate_config(|config| {
     match provider.as_str() {
-      "groq" => config.api_key_groq = key,
+      "openrouter" => config.api_key_openrouter = key,
       "openai" => config.api_key_openai = key,
       other => anyhow::bail!("Unknown provider: {other}"),
     }
@@ -758,7 +758,7 @@ pub fn save_onboarding_api_key(
 /// default (same table the settings UI marks "recommended").
 fn default_model_for(provider: &str) -> &'static str {
   match provider {
-    "groq" => "whisper-large-v3-turbo",
+    settings::OPENROUTER_PROVIDER => settings::OPENROUTER_DEFAULT_MODEL,
     crate::local_asr::LOCAL_PROVIDER => crate::local_asr::QWEN_MODEL_ID,
     _ => "gpt-transcribe",
   }
@@ -790,7 +790,7 @@ fn switch_provider(config: &mut AppConfig, provider: &str) {
 pub fn apply_provider_change(app: &AppHandle, provider: &str) -> Result<(), String> {
   if !matches!(
     provider,
-    "groq" | "openai" | crate::local_asr::LOCAL_PROVIDER
+    "openrouter" | "openai" | crate::local_asr::LOCAL_PROVIDER
   ) {
     return Err(format!("Unknown provider: {provider}"));
   }
@@ -2468,63 +2468,16 @@ pub async fn retranscribe_pending(
   Ok(text)
 }
 
-// A strong, richly-punctuated Chinese example appended to the transcription
-// `prompt` — but ONLY for Whisper + Chinese (see `build_transcription_prompt`).
-//
-// Whisper-family models treat the `prompt` as a *style example*, NOT an
-// instruction: they mirror its punctuation density rather than obeying "add
-// punctuation". Verified on real audio (2026-07-02) — with no prompt, or an
-// unpunctuated word-list dictionary, Groq `whisper-large-v3-turbo` returns a
-// wall of text with ZERO punctuation for Chinese; prepend this seed and
-// punctuation comes back reliably and deterministically (a hard clip went
-// 0 → 12 marks, identical across repeated runs). It says "简体中文" to pin
-// Simplified output, and must stay multi-sentence carrying all four marks
-// (。，？！): a one-liner lost to the user's comma-list dictionary on the hard
-// clip, while this held.
-//
-// Chinese-ONLY on purpose. Whisper's zero-punctuation collapse is a CJK/Chinese
-// trait; high-resource languages punctuate acceptably on their own, and
-// gpt-4o-transcribe punctuates everywhere by default. Injecting an unverified,
-// possibly wrong-script seed into another language could only hurt — so every
-// non-Chinese language (and every GPT-family model) gets no seed at all.
-//
-// "GPT-family" is matched as the `gpt-` prefix, not the literal `gpt-4o`: the
-// seed exists to patch a Whisper decoding trait, so a newer OpenAI model must
-// default to *no* seed rather than inherit an unverified prompt. That is how
-// `gpt-transcribe` (added 2026-09) is covered without re-measuring it.
-//
-// NOTE: this literal is mirrored in `src/views/main.html` (`#punctuation-seed`,
-// in the Dictionary page) for the read-only display — keep the two in sync.
+// The punctuation seed once appended to the prompt for Whisper + Chinese,
+// when Groq's Whisper was an engine (removed 2026-11-23). No engine is sent it
+// now; scrub.rs still strips it if a model ever echoes it back.
 pub const SEED_ZH: &str =
   "以下是一段简体中文语音的转写记录。你好，欢迎使用听写工具。今天的会议进展如何？太好了，我们继续！";
 
-fn is_chinese(language: &str) -> bool {
-  language.trim().to_lowercase().starts_with("zh")
-}
-
-/// Build the transcription `prompt` from the resolved model, the dictation
-/// language, and the user's vocabulary dictionary.
-///
-/// A punctuation seed is added only for **Whisper + Chinese**: it's appended
-/// LAST, closest to the audio, where Whisper weights style most heavily
-/// (verified: seed-last beats seed-first), and is injected even with an empty
-/// dictionary. Every other case — a GPT-family model (already punctuates) or
-/// any non-Chinese language — passes the dictionary through unchanged, or sends
-/// no prompt at all when the dictionary is empty.
-fn build_transcription_prompt(model: &str, language: &str, dictionary: &str) -> Option<String> {
+/// The transcription `prompt` for OpenAI: the dictionary's terms, or none.
+fn build_transcription_prompt(dictionary: &str) -> Option<String> {
   let dict = dictionary.trim();
-  let seed_chinese = !model.to_lowercase().starts_with("gpt-") && is_chinese(language);
-  if seed_chinese {
-    if dict.is_empty() {
-      Some(SEED_ZH.to_string())
-    } else {
-      Some(format!("{dict}\n{SEED_ZH}"))
-    }
-  } else if dict.is_empty() {
-    None
-  } else {
-    Some(dict.to_string())
-  }
+  (!dict.is_empty()).then(|| dict.to_string())
 }
 
 fn frontend_owns_audio_recovery(
@@ -2548,7 +2501,7 @@ pub const SESSION_PROVIDER_INVALID: &str = "SESSION_PROVIDER_INVALID";
 fn validate_session_provider(provider: &str) -> Result<&'static str, String> {
   match provider {
     "local" => Ok("local"),
-    "groq" => Ok("groq"),
+    "openrouter" => Ok("openrouter"),
     "openai" => Ok("openai"),
     _ => Err(SESSION_PROVIDER_INVALID.into()),
   }
@@ -2645,18 +2598,12 @@ async fn perform_transcription_request(
   audio_buffer: Vec<u8>,
   mime_type: String,
 ) -> Result<String> {
-  let endpoint_root = if provider == "groq" {
-    "https://api.groq.com/openai/v1"
-  } else {
-    "https://api.openai.com/v1"
-  };
-  let endpoint = format!("{endpoint_root}/audio/transcriptions");
+  if provider == settings::OPENROUTER_PROVIDER {
+    return perform_openrouter_request(client, config, api_key, audio_buffer, &mime_type).await;
+  }
+  let endpoint = "https://api.openai.com/v1/audio/transcriptions";
   let model = if config.model.trim().is_empty() {
-    if provider == "groq" {
-      "whisper-large-v3-turbo".to_string()
-    } else {
-      "gpt-transcribe".to_string()
-    }
+    "gpt-transcribe".to_string()
   } else {
     config.model.clone()
   };
@@ -2680,7 +2627,7 @@ async fn perform_transcription_request(
     form = form.text("language", config.language.clone());
   }
   if let Some(prompt) =
-    build_transcription_prompt(&model, &config.language, &crate::dictionary::prompt_terms(&config.dictionary))
+    build_transcription_prompt(&crate::dictionary::prompt_terms(&config.dictionary))
   {
     form = form.text("prompt", prompt);
   }
@@ -2710,6 +2657,86 @@ async fn perform_transcription_request(
     .text()
     .await
     .context("failed to read transcription response")?;
+  Ok(text.trim().to_string())
+}
+
+/// The audio format name OpenRouter expects in `input_audio.format`.
+fn openrouter_audio_format(mime_type: &str) -> &'static str {
+  if mime_type.contains("wav") {
+    "wav"
+  } else if mime_type.contains("mp4") || mime_type.contains("m4a") || mime_type.contains("aac") {
+    "m4a"
+  } else if mime_type.contains("ogg") {
+    "ogg"
+  } else {
+    "webm"
+  }
+}
+
+/// The JSON body for OpenRouter's speech-to-text endpoint. Per-model provider
+/// options come from the 2026-11 comparison (docs/cloud-transcription.md):
+/// MAI masks profanity unless told not to, which changes what the user said.
+/// No dictionary prompt: Qwen ignores it, as it does locally, and the
+/// replacement rules and term matching still run on the result.
+fn openrouter_request_body(model: &str, language: &str, audio: &[u8], mime_type: &str) -> serde_json::Value {
+  use base64::Engine as _;
+  let mut body = serde_json::json!({
+    "model": model,
+    "input_audio": {
+      "data": base64::engine::general_purpose::STANDARD.encode(audio),
+      "format": openrouter_audio_format(mime_type),
+    },
+  });
+  let language = language.trim();
+  if !language.is_empty() && language != "auto" {
+    body["language"] = language.into();
+  }
+  if model == "microsoft/mai-transcribe-2" {
+    body["provider"] = serde_json::json!({ "options": { "azure": { "profanityFilterMode": "None" } } });
+  }
+  body
+}
+
+async fn perform_openrouter_request(
+  client: &reqwest::Client,
+  config: &AppConfig,
+  api_key: &str,
+  audio_buffer: Vec<u8>,
+  mime_type: &str,
+) -> Result<String> {
+  let model = if settings::OPENROUTER_MODELS.contains(&config.model.as_str()) {
+    config.model.as_str()
+  } else {
+    settings::OPENROUTER_DEFAULT_MODEL
+  };
+  log::info!(
+    "transcribe: model={model} provider=openrouter language={}",
+    config.language
+  );
+  let body = openrouter_request_body(model, &config.language, &audio_buffer, mime_type);
+  let response = client
+    .post("https://openrouter.ai/api/v1/audio/transcriptions")
+    .bearer_auth(api_key)
+    // OpenRouter's app attribution headers; they name the app, nothing else.
+    .header("HTTP-Referer", "https://typealoud.app")
+    .header("X-Title", "TypeAloud")
+    .json(&body)
+    .send()
+    .await
+    .context("failed to send transcription request")?;
+  if !response.status().is_success() {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    return Err(anyhow::anyhow!("API error {status}: {body}"));
+  }
+  let value: serde_json::Value = response
+    .json()
+    .await
+    .context("failed to read transcription response")?;
+  let text = value
+    .get("text")
+    .and_then(|text| text.as_str())
+    .ok_or_else(|| anyhow::anyhow!("transcription response has no text"))?;
   Ok(text.trim().to_string())
 }
 
@@ -2781,11 +2808,26 @@ pub fn install_update_and_restart(app: AppHandle) -> Result<(), String> {
 mod tests {
   #[test]
   fn incomplete_audio_recovery_matches_the_frontend_persistence_gate() {
-    for provider in ["local", "groq", "openai"] {
+    for provider in ["local", "openrouter", "openai"] {
       assert_eq!(frontend_owns_audio_recovery(provider, None, true), provider == "local");
       assert!(!frontend_owns_audio_recovery(provider, None, false));
       assert!(frontend_owns_audio_recovery(provider, Some(0), true));
     }
+  }
+
+  #[test]
+  fn openrouter_body_turns_off_mai_masking_and_skips_auto_language() {
+    let mai = openrouter_request_body("microsoft/mai-transcribe-2", "auto", b"RIFF", "audio/wav");
+    assert_eq!(mai["provider"]["options"]["azure"]["profanityFilterMode"], "None");
+    assert_eq!(mai["input_audio"]["format"], "wav");
+    assert_eq!(mai["input_audio"]["data"], "UklGRg==");
+    assert!(mai.get("language").is_none());
+    let qwen = openrouter_request_body("qwen/qwen3-asr-1.7b", "zh", b"x", "audio/webm;codecs=opus");
+    assert!(qwen.get("provider").is_none());
+    assert_eq!(qwen["language"], "zh");
+    assert_eq!(qwen["input_audio"]["format"], "webm");
+    assert_eq!(openrouter_audio_format("audio/mp4"), "m4a");
+    assert!(qwen.get("prompt").is_none());
   }
 
   #[test]
@@ -3046,10 +3088,10 @@ mod tests {
 
     assert!(frontend_owns_hang_recovery(&hang, "local"));
     assert!(frontend_owns_hang_recovery(&timeout, "local"));
-    assert!(!frontend_owns_hang_recovery(&timeout, "groq"));
-    assert!(!frontend_owns_hang_recovery(&hang, "groq"));
+    assert!(!frontend_owns_hang_recovery(&timeout, "openrouter"));
+    assert!(!frontend_owns_hang_recovery(&hang, "openrouter"));
     assert!(!frontend_owns_hang_recovery(&refused, "local"));
-    assert!(!frontend_owns_hang_recovery(&refused, "groq"));
+    assert!(!frontend_owns_hang_recovery(&refused, "openrouter"));
     assert!(!frontend_owns_hang_recovery(&timeout, ""));
   }
 
@@ -3058,9 +3100,9 @@ mod tests {
   #[test]
   fn switch_provider_resets_model_to_the_new_providers_default() {
     let mut config = AppConfig::default(); // openai / gpt-transcribe
-    switch_provider(&mut config, "groq");
-    assert_eq!(config.provider, "groq");
-    assert_eq!(config.model, "whisper-large-v3-turbo");
+    switch_provider(&mut config, "openrouter");
+    assert_eq!(config.provider, "openrouter");
+    assert_eq!(config.model, "qwen/qwen3-asr-1.7b");
     switch_provider(&mut config, "local");
     assert_eq!(config.model, "qwen3-asr-0.6b-q8_0");
     switch_provider(&mut config, "openai");
@@ -3082,9 +3124,9 @@ mod tests {
   #[test]
   fn a_requested_switch_applies_only_if_the_engine_is_unchanged() {
     let small = Some(("local".to_string(), crate::local_asr::QWEN_MODEL_ID.to_string()));
-    let groq = Some(("groq".to_string(), "whisper-large-v3-turbo".to_string()));
+    let openrouter = Some(("openrouter".to_string(), "qwen/qwen3-asr-1.7b".to_string()));
     assert!(engine_unchanged_since_request(&small, &small.clone()));
-    assert!(!engine_unchanged_since_request(&small, &groq));
+    assert!(!engine_unchanged_since_request(&small, &openrouter));
     assert!(!engine_unchanged_since_request(&None, &None));
     assert!(!engine_unchanged_since_request(&small, &None));
   }
@@ -3115,7 +3157,7 @@ mod tests {
   #[test]
   fn switch_provider_preserves_keys_and_dictionary() {
     let mut config = AppConfig::default();
-    config.api_key_groq = "gsk_x".into();
+    config.api_key_openrouter = "gsk_x".into();
     config.api_key_openai = "sk_x".into();
     config.api_key = "sk_x".into();
     config.dictionary = "Claude".into();
@@ -3124,12 +3166,12 @@ mod tests {
     // → local: the legacy api_key mirror must survive (no key to mirror).
     switch_provider(&mut config, "local");
     assert_eq!(config.api_key, "sk_x");
-    assert_eq!(config.api_key_groq, "gsk_x");
+    assert_eq!(config.api_key_openrouter, "gsk_x");
     assert_eq!(config.dictionary, "Claude");
     assert!(config.onboarding_completed);
 
-    // → groq: the mirror follows the newly selected provider's key.
-    switch_provider(&mut config, "groq");
+    // → openrouter: the mirror follows the newly selected provider's key.
+    switch_provider(&mut config, "openrouter");
     assert_eq!(config.api_key, "gsk_x");
     assert_eq!(config.api_key_openai, "sk_x");
   }
@@ -3208,86 +3250,11 @@ mod tests {
     assert!(second.is_cancelled());
   }
 
-  // --- Whisper + Chinese: the seed is injected, placed LAST ---
-
   #[test]
-  fn whisper_chinese_empty_dictionary_gets_the_seed() {
-    // Bug repro: no prompt at all -> Whisper emits zero punctuation for Chinese,
-    // so the seed must be injected even with an empty dictionary.
-    let p = build_transcription_prompt("whisper-large-v3-turbo", "zh", "").unwrap();
-    assert_eq!(p, SEED_ZH);
-    assert!(p.contains('。') && p.contains('？') && p.contains('！'));
-  }
-
-  #[test]
-  fn whisper_chinese_appends_seed_after_dictionary() {
-    // Seed sits LAST (closest to the audio); the vocabulary comes first.
-    let dict = "Claude\nAzure";
-    let p = build_transcription_prompt("whisper-large-v3-turbo", "zh", dict).unwrap();
-    assert_eq!(p, format!("{dict}\n{SEED_ZH}"));
-    assert!(p.starts_with(dict) && p.ends_with(SEED_ZH));
-    assert!(p.find(SEED_ZH).unwrap() > p.find("Claude").unwrap());
-  }
-
-  #[test]
-  fn whisper_chinese_trims_dictionary_whitespace() {
-    let p = build_transcription_prompt("whisper-large-v3-turbo", "zh", "  \n Claude \n ").unwrap();
-    assert_eq!(p, format!("Claude\n{SEED_ZH}"));
-  }
-
-  #[test]
-  fn chinese_detection_is_case_and_region_insensitive() {
-    // Any zh* code counts as Chinese and is seeded. (There is no Traditional
-    // option in the app today; a zh-TW user would still get the Simplified seed —
-    // an accepted limitation, revisit if Traditional is ever offered.)
-    for lang in ["zh", "ZH", "zh-Hans", "zh-CN", "zh-TW"] {
-      let p = build_transcription_prompt("whisper-large-v3-turbo", lang, "").unwrap();
-      assert_eq!(p, SEED_ZH, "language {lang:?} should be seeded as Chinese");
-    }
-  }
-
-  // --- Non-Chinese languages: NO seed (dictionary passes through, or nothing) ---
-
-  #[test]
-  fn whisper_non_chinese_is_never_seeded() {
-    for lang in ["en", "en-AU", "ja", "es", "auto", ""] {
-      // empty dictionary -> no prompt at all
-      assert_eq!(
-        build_transcription_prompt("whisper-large-v3-turbo", lang, ""),
-        None,
-        "language {lang:?} should send no prompt when the dictionary is empty"
-      );
-      // non-empty dictionary -> passed through verbatim, never seeded
-      let p = build_transcription_prompt("whisper-large-v3-turbo", lang, "Claude").unwrap();
-      assert_eq!(p, "Claude", "language {lang:?} must not be seeded");
-      assert!(!p.contains(SEED_ZH));
-    }
-  }
-
-  // --- GPT family: never seeded, even for Chinese (it already punctuates) ---
-
-  #[test]
-  fn gpt_family_is_never_seeded_even_for_chinese() {
-    for model in ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "gpt-transcribe"] {
-      assert_eq!(build_transcription_prompt(model, "zh", ""), None);
-      assert_eq!(build_transcription_prompt(model, "zh", "   "), None);
-      let p = build_transcription_prompt(model, "zh", "Claude\nAzure").unwrap();
-      assert_eq!(p, "Claude\nAzure");
-      assert!(!p.contains(SEED_ZH) && !p.contains('。'));
-    }
-  }
-
-  // The rule is the `gpt-` prefix, so the Whisper models — the ones the seed was
-  // actually measured on — must keep getting it.
-  #[test]
-  fn whisper_models_are_still_seeded_for_chinese() {
-    for model in ["whisper-1", "whisper-large-v3", "whisper-large-v3-turbo"] {
-      assert_eq!(
-        build_transcription_prompt(model, "zh", "").unwrap(),
-        SEED_ZH,
-        "{model} lost the Chinese punctuation seed"
-      );
-    }
+  fn the_prompt_is_the_trimmed_dictionary_or_nothing() {
+    assert_eq!(build_transcription_prompt(""), None);
+    assert_eq!(build_transcription_prompt("  \n "), None);
+    assert_eq!(build_transcription_prompt("  \n Claude \n ").as_deref(), Some("Claude"));
   }
 
   // --- Transcription routing: local vs cloud ---
@@ -3301,7 +3268,7 @@ mod tests {
 
   #[test]
   fn session_provider_header_requires_an_exact_known_value() {
-    for provider in ["local", "groq", "openai"] {
+    for provider in ["local", "openrouter", "openai"] {
       assert_eq!(validate_session_provider(provider).unwrap(), provider);
     }
     // Missing and non-UTF8 headers are decoded as an empty string at the IPC edge.
@@ -3322,7 +3289,7 @@ mod tests {
 
   #[test]
   fn local_session_stays_local_after_settings_switches_to_cloud() {
-    for provider in ["groq", "openai"] {
+    for provider in ["openrouter", "openai"] {
       let config = config_with(provider, "gsk", "osk");
       assert!(matches!(resolve_transcription_route_for("local", &config).unwrap(), TranscriptionRoute::Local));
       let local = transcription_config_for_provider(&config, "local");
@@ -3333,10 +3300,10 @@ mod tests {
 
   #[test]
   fn cloud_session_keeps_its_destination_and_key_after_settings_change() {
-    for selected in ["local", "groq", "openai"] {
+    for selected in ["local", "openrouter", "openai"] {
       let mut config = config_with(selected, "gsk", "osk");
       config.model = default_model_for(selected).into();
-      for (session, expected_key) in [("groq", "gsk"), ("openai", "osk")] {
+      for (session, expected_key) in [("openrouter", "gsk"), ("openai", "osk")] {
         match resolve_transcription_route_for(session, &config).unwrap() {
           TranscriptionRoute::Cloud { provider, api_key } => {
             assert_eq!(provider, session);
@@ -3351,7 +3318,7 @@ mod tests {
 
   #[test]
   fn switched_session_cannot_reuse_another_providers_legacy_key() {
-    let mut config = config_with("groq", "gsk", "");
+    let mut config = config_with("openrouter", "gsk", "");
     config.api_key = "gsk".into();
     assert!(resolve_transcription_route_for("openai", &config).is_err());
   }
@@ -3370,10 +3337,10 @@ mod tests {
     assert!(!error.to_string().contains("/private/model/path"));
   }
 
-  fn config_with(provider: &str, groq: &str, openai: &str) -> AppConfig {
+  fn config_with(provider: &str, openrouter: &str, openai: &str) -> AppConfig {
     let mut c = AppConfig::default();
     c.provider = provider.into();
-    c.api_key_groq = groq.into();
+    c.api_key_openrouter = openrouter.into();
     c.api_key_openai = openai.into();
     c
   }
@@ -3386,9 +3353,9 @@ mod tests {
 
   #[test]
   fn cloud_providers_route_unchanged_and_require_a_key() {
-    match resolve_transcription_route(&config_with("groq", "gsk", "")).unwrap() {
+    match resolve_transcription_route(&config_with("openrouter", "gsk", "")).unwrap() {
       TranscriptionRoute::Cloud { provider, api_key } => {
-        assert_eq!(provider, "groq");
+        assert_eq!(provider, "openrouter");
         assert_eq!(api_key, "gsk");
       }
       other => panic!("{other:?}"),

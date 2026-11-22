@@ -33,7 +33,7 @@ body:
         - Qwen 1.7B
         - Nemotron
         - OpenAI
-        - Groq
+        - OpenRouter
         - Not sure / 不确定
   - type: input
     id: target

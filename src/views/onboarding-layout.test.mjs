@@ -10,15 +10,15 @@ test("onboarding uses named steps, with engine before permissions and no non-mac
   for (const os of ["windows", "linux"]) assert.deepEqual(module.onboardingSteps(os), ["welcome", "privacy", "engine", "microphone", "shortcut", "practice"]);
 });
 
-test("onboarding offers Qwen and OpenAI up front, Groq and Nemotron under more, and never 1.7B", () => {
+test("onboarding offers Qwen and OpenRouter up front, OpenAI and Nemotron under more, and never 1.7B", () => {
   assert.equal(typeof module.onboardingEngineLayout, "function", "tier layout policy must exist");
   for (const [tier, main] of [
-    ["qwen", [small, "openai"]],
-    ["cloud-default", ["openai", small]],
+    ["qwen", [small, "openrouter"]],
+    ["cloud-default", ["openrouter", small]],
   ]) {
     const layout = module.onboardingEngineLayout(tier, true);
     assert.deepEqual(layout.main.map(card => card.value), main);
-    assert.deepEqual(layout.more.map(card => card.value), ["groq", nemotron]);
+    assert.deepEqual(layout.more.map(card => card.value), ["openai", nemotron]);
     const cards = [...layout.main, ...layout.more];
     assert.deepEqual(cards.filter(card => card.recommended).map(card => card.value), [small]);
     assert.equal(cards.some(card => card.value === large), false);
@@ -33,5 +33,5 @@ test("selected downloading local engine permits Next but never unlocks practice"
   assert.deepEqual(module.onboardingEngineState(settings, {qwen:{state:"downloading"}}), {selected: true, ready: false});
   for (const state of ["absent", "partial", "error"]) assert.deepEqual(module.onboardingEngineState(settings, {qwen:{state}}), {selected:false, ready:false});
   assert.deepEqual(module.onboardingEngineState({...settings, engineReady:true}, {qwen:{state:"ready"}}), {selected:true,ready:true});
-  assert.deepEqual(module.onboardingEngineState({provider:"groq",engineReady:false}, {qwen:{state:"downloading"}}), {selected:false,ready:false});
+  assert.deepEqual(module.onboardingEngineState({provider:"openrouter",engineReady:false}, {qwen:{state:"downloading"}}), {selected:false,ready:false});
 });

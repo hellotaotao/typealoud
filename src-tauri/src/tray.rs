@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 /// The tray exposes cloud providers and concrete local engines. Labels are
 /// English-only like the rest of the tray menu.
 const ENGINES: [(&str, &str, &str, Option<&str>); 5] = [
-  ("engine-groq", "Groq (cloud)", "groq", None),
+  ("engine-openrouter", "OpenRouter (cloud)", "openrouter", None),
   ("engine-openai", "OpenAI (cloud)", "openai", None),
   (
     "engine-local-qwen",
@@ -59,7 +59,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
           log::error!("tray:install-update-failed error={error}");
         }
       }
-      "engine-groq" => switch_engine(app, "groq", None),
+      "engine-openrouter" => switch_engine(app, "openrouter", None),
       "engine-openai" => switch_engine(app, "openai", None),
       "engine-local-nemotron" => switch_engine(
         app,
@@ -215,7 +215,7 @@ mod tests {
   #[test]
   fn engine_entrypoints_target_details_for_every_engine() {
     for (provider, model, target) in [
-      ("groq", None, "engine:groq"),
+      ("openrouter", None, "engine:openrouter"),
       ("openai", None, "engine:openai"),
       ("local", Some(crate::local_asr::QWEN_MODEL_ID), "engine:local-qwen"),
       ("local", Some(crate::local_asr::QWEN_LARGE_MODEL_ID), "engine:local-qwen-large"),
@@ -241,13 +241,13 @@ mod tests {
       crate::local_asr::LOCAL_PROVIDER,
       Some(crate::local_asr::QWEN_MODEL_ID)
     ));
-    assert!(!engine_selected(&config, "groq", None));
+    assert!(!engine_selected(&config, "openrouter", None));
   }
 
   #[test]
   fn nemotron_is_only_listed_where_its_runtime_exists() {
     let ids: Vec<&str> = available_engines().iter().map(|(id, ..)| *id).collect();
-    assert!(ids.contains(&"engine-groq"));
+    assert!(ids.contains(&"engine-openrouter"));
     assert!(ids.contains(&"engine-local-qwen"));
     assert_eq!(
       ids.contains(&"engine-local-nemotron"),

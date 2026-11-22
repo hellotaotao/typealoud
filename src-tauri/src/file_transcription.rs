@@ -524,7 +524,7 @@ pub struct FileTranscript {
   pub status: Status,
   #[serde(default)]
   pub error: Option<String>,
-  /// "local", "openai" or "groq", fixed when the job starts.
+  /// "local", "openai" or "openrouter", fixed when the job starts.
   pub provider: String,
   pub model: String,
   #[serde(default)]

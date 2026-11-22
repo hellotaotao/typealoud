@@ -22,7 +22,7 @@ function container(id) {
   };
 }
 function harness() {
-  const choices = ["local-qwen", "local-qwen-large", "groq", "openai"];
+  const choices = ["local-qwen", "local-qwen-large", "openrouter", "openai"];
   const nodes = {};
   // Both Qwen sizes share the Qwen row's drawer; 1.7B has no row of its own.
   for (const choice of choices.filter(choice => choice !== "local-qwen-large")) {
@@ -31,10 +31,10 @@ function harness() {
   }
   for (const id of ["engineAdvanced", "engineActivation", "apiKeyItem", "modelItem"]) nodes[id] = { id };
   nodes.providerSelect = { value: "local-qwen", options: choices.map(value => ({ value })) };
-  nodes.modelSelect = { value: "groq-model", options: [{ value: "groq-model" }] };
+  nodes.modelSelect = { value: "openrouter-model", options: [{ value: "openrouter-model" }] };
   const context = vm.createContext({
     document: { getElementById: id => nodes[id] },
-    ENGINE_CARDS: choices.map(value => ({ value, group: value === "local-qwen-large" ? "size" : value === "groq" ? "more" : "main" })),
+    ENGINE_CARDS: choices.map(value => ({ value, group: value === "local-qwen-large" ? "size" : value === "openrouter" ? "more" : "main" })),
     engineMoreExpanded: false,
     isQwenChoice: value => value === "local-qwen" || value === "local-qwen-large",
     engineRowFor: value => value === "local-qwen-large" ? "local-qwen" : value,
@@ -42,7 +42,7 @@ function harness() {
     engineCloudDrafts: new Map(), currentSettings: { provider: "local", model: "small" },
     localModelForProvider: choice => choice === "local-qwen" ? "small" : choice === "local-qwen-large" ? "large" : "",
     providerForSettings: settings => settings.model === "large" ? "local-qwen-large" : "local-qwen",
-    modelOptions: { groq: [{ value: "groq-model" }] },
+    modelOptions: { openrouter: [{ value: "openrouter-model" }] },
     updateModelOptions() {}, setSelectValue(node, value) { node.value = value; },
     refreshLocalModelStatus: async () => {},
   });
@@ -55,17 +55,17 @@ function harness() {
 
 test("engine card click opens, closes, and reopens without changing the active engine", () => {
   const h = harness();
-  h.context.inspectEngine("groq", { toggle: true });
-  assert.equal(h.nodes["engine-drawer-groq"].hidden, false);
+  h.context.inspectEngine("openrouter", { toggle: true });
+  assert.equal(h.nodes["engine-drawer-openrouter"].hidden, false);
   assert.equal(h.nodes["engine-drawer-local-qwen"].hidden, true);
-  assert.equal(h.nodes.apiKeyItem.parentElement, h.nodes["engine-drawer-groq"]);
-  h.context.inspectEngine("groq", { toggle: true });
+  assert.equal(h.nodes.apiKeyItem.parentElement, h.nodes["engine-drawer-openrouter"]);
+  h.context.inspectEngine("openrouter", { toggle: true });
   assert.ok(h.choices.every(choice => h.nodes[`engine-drawer-${choice}`]?.hidden ?? true));
-  assert.equal(h.nodes["engine-disclosure-groq"].attributes["aria-expanded"], "false");
+  assert.equal(h.nodes["engine-disclosure-openrouter"].attributes["aria-expanded"], "false");
   h.context.syncEngineDrawer();
-  assert.equal(h.nodes["engine-drawer-groq"].hidden, true, "status refresh must not reopen a collapsed drawer");
-  h.context.inspectEngine("groq", { toggle: true });
-  assert.equal(h.nodes["engine-drawer-groq"].hidden, false);
+  assert.equal(h.nodes["engine-drawer-openrouter"].hidden, true, "status refresh must not reopen a collapsed drawer");
+  h.context.inspectEngine("openrouter", { toggle: true });
+  assert.equal(h.nodes["engine-drawer-openrouter"].hidden, false);
   assert.equal(h.context.currentSettings.provider, "local");
   assert.equal(h.context.currentSettings.model, "small");
 });
@@ -84,7 +84,7 @@ test("explicit deep link opens local details even when its card is already expan
 
 test("opening an engine behind More engines expands that group", () => {
   const h = harness();
-  h.context.inspectEngine("groq");
+  h.context.inspectEngine("openrouter");
   assert.equal(h.context.engineMoreExpanded, true);
 });
 
@@ -109,11 +109,11 @@ test("engine cards show a decorative chevron driven by expansion state", () => {
 
 test("a row click switches to a usable engine, but only opens one that is not usable yet", async () => {
   const calls = [];
-  const ready = new Set(["local-qwen-large", "groq"]);
+  const ready = new Set(["local-qwen-large", "openrouter"]);
   const context = vm.createContext({
     engineSwitchPending: false,
     currentSettings: { provider: "local", model: "small" },
-    ENGINE_CARDS: ["local-qwen", "local-qwen-large", "groq", "openai"].map(value => ({ value })),
+    ENGINE_CARDS: ["local-qwen", "local-qwen-large", "openrouter", "openai"].map(value => ({ value })),
     engineStatus: entry => ({ tone: ready.has(entry.value) || entry.value === "local-qwen" ? "ok" : "warn" }),
     providerForSettings: settings => settings.model === "large" ? "local-qwen-large" : "local-qwen",
     inspectEngine: (choice, options = {}) => calls.push(["inspect", choice, !!options.toggle]),
@@ -128,7 +128,7 @@ test("a row click switches to a usable engine, but only opens one that is not us
   await context.chooseSettingsEngine("local-qwen");
   assert.deepEqual(calls.splice(0), [["inspect", "local-qwen", true]], "the active engine's row only opens or closes");
   context.engineSwitchPending = true;
-  await context.chooseSettingsEngine("groq");
+  await context.chooseSettingsEngine("openrouter");
   assert.equal(calls.length, 0);
 });
 
@@ -149,7 +149,7 @@ test("drawer content starts where the row's title does", () => {
 test("a cloud drawer keeps its key, model and notice in order after a local drawer was opened", () => {
   const h = harness();
   h.context.toggleProviderFields = () => h.context.syncEngineDrawer();
-  for (const choice of ["groq", "local-qwen-large", "groq"]) h.context.inspectEngine(choice);
-  const order = h.nodes["engine-drawer-groq"].children.map((node) => node.id);
+  for (const choice of ["openrouter", "local-qwen-large", "openrouter"]) h.context.inspectEngine(choice);
+  const order = h.nodes["engine-drawer-openrouter"].children.map((node) => node.id);
   assert.deepEqual(order, ["apiKeyItem", "modelItem", "engineActivation"]);
 });

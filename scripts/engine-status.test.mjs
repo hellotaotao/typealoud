@@ -20,7 +20,7 @@ test('inspection draws controls for the inspected engine rather than the active 
   const fn = source.slice(source.indexOf('function toggleProviderFields'),source.indexOf('// --- Local model panel'));
   for (const inspected of ['qwen', 'qwen-large', 'nemotron']) {
     const hidden = {};
-    const fields = Object.fromEntries(['nemotronLatencyItem','localComputeItem','apiKeyFieldGroq','apiKeyFieldOpenAI'].map(id=>[id,{classList:{toggle:(_name,value)=>{hidden[id]=value;}}}]));
+    const fields = Object.fromEntries(['nemotronLatencyItem','localComputeItem','apiKeyFieldOpenRouter','apiKeyFieldOpenAI'].map(id=>[id,{classList:{toggle:(_name,value)=>{hidden[id]=value;}}}]));
     const context = vm.createContext({
       currentSettings: { provider: "local", model: "nemotron" },
       inspectedLocalModel:inspected,QWEN_LOCAL_MODEL:'qwen',NEMOTRON_LOCAL_MODEL:'nemotron',

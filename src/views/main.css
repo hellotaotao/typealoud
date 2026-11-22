@@ -2062,22 +2062,6 @@ body {
   color: var(--app-text);
 }
 
-/* Read-only display of the auto-appended Chinese punctuation seed. */
-.punctuation-seed {
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--input-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text-muted);
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-}
-
 /* Notification toasts. The fixed column is what keeps simultaneous messages
    from stacking on top of each other — each toast is a static flex child, so
    the gap does the spacing and removal reflows the rest up. */

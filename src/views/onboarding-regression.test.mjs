@@ -81,7 +81,7 @@ test("required settings and Qwen 1.7B copy is translated, with bounded local pri
     setLanguage("en");const en=t(key);setLanguage("zh");assert.notEqual(t(key),en,key);assert.match(t(key),/[\u4e00-\u9fff]/,key);
   }
   assert.match(t("onboarding.privacy.title"),/本地听写/);
-  assert.doesNotMatch(t("onboarding.key.groqDesc"),/大多数|免费随便/);
+  assert.doesNotMatch(t("onboarding.key.openrouterDesc"),/大多数|免费随便/);
 });
 
 test("engine advance is scheduled before a long model download resolves", async () => {
@@ -104,10 +104,10 @@ test("engine advance is scheduled before a long model download resolves", async 
   finishDownload(true);await task;
 });
 
-test("the download event handler preserves a Groq choice made while local download runs", () => {
+test("the download event handler preserves a OpenRouter choice made while local download runs", () => {
   const handlers={}, mutations=[];
   const context=vm.createContext({
-    cachedSettings:{provider:"groq",engineReady:true},obLocalVersions:{},obLocalStatuses:{},obLocalErrors:{},
+    cachedSettings:{provider:"openrouter",engineReady:true},obLocalVersions:{},obLocalStatuses:{},obLocalErrors:{},
     normalizeLocalModel:model=>model,applyEngineDownloadProgress(){},renderHomeLocalReadiness(){},renderObLocal(){},renderObFooter(){},renderObFinal(){},refreshReadiness(){},obRefreshLocalStatus(){},
     obSelectLocal:model=>{mutations.push(model);context.cachedSettings.provider="local";},
     ipc:{on:(event,handler)=>{handlers[event]=handler;}},
@@ -115,7 +115,7 @@ test("the download event handler preserves a Groq choice made while local downlo
   const progress=source.slice(source.indexOf('ipc.on("local-model-download-progress"'),source.indexOf('ipc.on("activity-updated"'));
   vm.runInContext(progress,context);
   handlers["local-model-download-progress"](null,{model:"qwen",state:"ready",downloadedBytes:100,totalBytes:100});
-  assert.equal(context.cachedSettings.provider,"groq");
+  assert.equal(context.cachedSettings.provider,"openrouter");
   assert.equal(context.obLocalStatuses.qwen.state,"ready");
   assert.deepEqual(mutations,[]);
 });
@@ -124,12 +124,12 @@ test("resuming after a Settings provider switch uses the current provider's key 
   const input={value:"previous-provider-secret"};
   const context=vm.createContext({
     onboardingVisible:()=>true,
-    cachedSettings:{provider:"groq",engineReady:true},obKeyProvider:"openai",obSelectionPending:false,obKeyStatus:"idle",obKeyError:"",
+    cachedSettings:{provider:"openrouter",engineReady:true},obKeyProvider:"openai",obSelectionPending:false,obKeyStatus:"idle",obKeyError:"",
     document:{querySelectorAll:()=>[],getElementById:id=>id==="obKeyInput"?input:null},t:key=>key,
   });
   vm.runInContext(extract("renderObKey"),context);
   context.renderObKey();
-  assert.equal(context.obKeyProvider,"groq");
+  assert.equal(context.obKeyProvider,"openrouter");
   assert.equal(input.value,"");
 });
 
@@ -176,7 +176,7 @@ test("privacy explains local dictation without a cloud routing diagram or transl
   for (const language of ["en", "zh"]) {
     context.window.TypeAloudI18n.setLanguage(language);
     const copy = [...privacy.matchAll(/data-i18n="([^"]+)"/g)].map(match => context.window.TypeAloudI18n.t(match[1])).join(" ");
-    assert.doesNotMatch(copy, /Groq|OpenAI|API|\bkey\b|translat|云端|翻译|账户/i);
+    assert.doesNotMatch(copy, /OpenRouter|OpenAI|API|\bkey\b|translat|云端|翻译|账户/i);
     assert.match(copy, language === "zh" ? /本地/ : /local/i);
   }
 });

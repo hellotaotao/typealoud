@@ -10,10 +10,10 @@ function section(start, end) { return source.slice(source.indexOf(start), source
 function harness(options = {}) {
   const saved = [], calls = [];
   const fields = {
-    providerSelect: { value: "local-qwen-large", options: ["local-qwen", "local-qwen-large", "groq", "openai"].map(value => ({ value })) },
-    modelSelect: { value: "whisper-large-v3", options: [{ value: "whisper-large-v3" }, { value: "whisper-large-v3-turbo" }, { value: "gpt-transcribe" }] },
+    providerSelect: { value: "local-qwen-large", options: ["local-qwen", "local-qwen-large", "openrouter", "openai"].map(value => ({ value })) },
+    modelSelect: { value: "microsoft/mai-transcribe-2", options: [{ value: "microsoft/mai-transcribe-2" }, { value: "qwen/qwen3-asr-1.7b" }, { value: "gpt-transcribe" }] },
     themeSelect: { value: "midnight" },
-    apiKeyGroq: { value: "groq-key" }, apiKeyOpenAI: { value: "openai-key" },
+    apiKeyOpenRouter: { value: "openrouter-key" }, apiKeyOpenAI: { value: "openai-key" },
   };
   const context = vm.createContext({
     console: { error() {} },
@@ -23,7 +23,7 @@ function harness(options = {}) {
     showSaveStatus() {}, renderEngineCards() {},
     localModelForProvider: choice => choice === "local-qwen-large" ? large : choice === "local-qwen" ? small : "",
     providerForSettings: settings => settings.provider === "local" ? settings.model === large ? "local-qwen-large" : "local-qwen" : settings.provider,
-    modelOptions: { groq: [{ value: "whisper-large-v3" }, { value: "whisper-large-v3-turbo" }], openai: [{ value: "gpt-transcribe" }] },
+    modelOptions: { openrouter: [{ value: "microsoft/mai-transcribe-2" }, { value: "qwen/qwen3-asr-1.7b" }], openai: [{ value: "gpt-transcribe" }] },
     ipc: { invoke: async (command, payload) => {
       calls.push([command, payload]);
       if (command === "get-local-model-status") return options.status ? options.status(payload) : { state: "ready" };
@@ -36,7 +36,7 @@ function harness(options = {}) {
     engineCloudDrafts: new Map(),
     setSelectValue: (element, value) => { element.value = value; },
     inspectedLocalModel: null, expandedEngineProvider: null,
-    ENGINE_CARDS: ["local-qwen", "local-qwen-large", "groq", "openai"].map(value => ({ value, local: value.startsWith("local") })),
+    ENGINE_CARDS: ["local-qwen", "local-qwen-large", "openrouter", "openai"].map(value => ({ value, local: value.startsWith("local") })),
     engineStatus: entry => options.notReady?.includes(entry.value) ? { key: "needs", tone: "warn" } : { key: "ready", tone: "ok" },
     camelKey: value => value,
     isQwenChoice: value => value === "local-qwen" || value === "local-qwen-large",
@@ -48,19 +48,19 @@ function harness(options = {}) {
 }
 test("inspecting cloud and editing its key or theme never changes active engine", async () => {
   const h = harness();
-  h.context.inspectEngine("groq");
-  h.fields.apiKeyGroq.value = "edited-key";
+  h.context.inspectEngine("openrouter");
+  h.fields.apiKeyOpenRouter.value = "edited-key";
   await h.context.saveSettings();
   assert.equal(h.saved[0].provider, "local");
   assert.equal(h.saved[0].model, small);
-  assert.equal(h.saved[0].apiKeyGroq, "edited-key");
+  assert.equal(h.saved[0].apiKeyOpenRouter, "edited-key");
   assert.equal(h.saved[0].uiTheme, "midnight");
   assert.equal(h.context.currentSettings.localCapable, true);
   assert.equal(h.calls.some(([command]) => command === "get-local-model-status"), false);
 });
 test("explicit cloud activation captures provider and model before queue runs", async () => {
   const h = harness();
-  h.context.inspectEngine("groq");
+  h.context.inspectEngine("openrouter");
   const switching = h.context.activateEngine(h.context.inspectedEngineTarget());
   h.fields.providerSelect.value = "openai";
   h.fields.modelSelect.value = "gpt-transcribe";
@@ -69,8 +69,8 @@ test("explicit cloud activation captures provider and model before queue runs", 
   await ordinary;
   assert.equal(h.saved.length, 2);
   for (const settings of h.saved) {
-    assert.equal(settings.provider, "groq");
-    assert.equal(settings.model, "whisper-large-v3");
+    assert.equal(settings.provider, "openrouter");
+    assert.equal(settings.model, "microsoft/mai-transcribe-2");
   }
 });
 test("failed activation leaves persisted engine unchanged and reports failure", async () => {
@@ -84,7 +84,7 @@ test("failed activation leaves persisted engine unchanged and reports failure", 
 });
 test("cloud activation requires a key but key editing alone never activates", async () => {
   const h = harness();
-  h.context.inspectEngine("groq"); h.fields.apiKeyGroq.value = "";
+  h.context.inspectEngine("openrouter"); h.fields.apiKeyOpenRouter.value = "";
   assert.equal(await h.context.activateEngine(h.context.inspectedEngineTarget()), false);
   assert.equal(h.saved.length, 0);
   assert.equal(h.context.currentSettings.model, small);
@@ -126,7 +126,7 @@ test("ordinary queued write after pending activation preserves successful active
   const activate = h.context.activateEngine(h.context.inspectedEngineTarget());
   for (let i = 0; i < 30 && !resolveSave; i++) await Promise.resolve();
   assert.ok(resolveSave);
-  h.context.inspectEngine("groq");
+  h.context.inspectEngine("openrouter");
   const save = h.context.saveSettings();
   assert.equal(vm.runInContext("engineSwitchPending", h.context), true);
   assert.equal(await h.context.activateEngine(h.context.inspectedEngineTarget()), false);
@@ -139,21 +139,21 @@ test("ordinary queued write after pending activation preserves successful active
 
 test("the active cloud engine's drawer shows its real model; an inactive one keeps its candidate", () => {
   const h = harness();
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3" };
-  h.context.updateModelOptions = () => { h.fields.modelSelect.value = "whisper-large-v3-turbo"; };
-  h.context.inspectEngine("groq");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3");
-  h.fields.modelSelect.value = "whisper-large-v3-turbo";
+  h.context.currentSettings = { provider: "openrouter", model: "microsoft/mai-transcribe-2" };
+  h.context.updateModelOptions = () => { h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b"; };
+  h.context.inspectEngine("openrouter");
+  assert.equal(h.fields.modelSelect.value, "microsoft/mai-transcribe-2");
+  h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b";
   h.context.inspectEngine("local-qwen-large");
-  h.context.inspectEngine("groq");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3", "a pick that never saved is not shown as in use");
+  h.context.inspectEngine("openrouter");
+  assert.equal(h.fields.modelSelect.value, "microsoft/mai-transcribe-2", "a pick that never saved is not shown as in use");
 
   h.context.currentSettings = { provider: "local", model: small };
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3";
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "microsoft/mai-transcribe-2";
   h.context.inspectEngine("local-qwen-large");
-  h.context.inspectEngine("groq");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3");
+  h.context.inspectEngine("openrouter");
+  assert.equal(h.fields.modelSelect.value, "microsoft/mai-transcribe-2");
   assert.equal(h.saved.length, 0);
 });
 
@@ -170,7 +170,7 @@ test("local drawers show the activation panel only for a failure; cloud drawers 
   assert.equal(h.fields.engineActivation.hidden, false);
   assert.equal(h.fields.engineActivationStatus.textContent, "Failed to switch");
   vm.runInContext('engineActivationMessage = ""', h.context);
-  h.fields.providerSelect.value = "groq";
+  h.fields.providerSelect.value = "openrouter";
   h.context.renderEngineActivation();
   assert.equal(h.fields.engineActivation.hidden, false);
   assert.equal(h.fields.engineCloudNotice.hidden, false);
@@ -180,14 +180,14 @@ test("local drawers show the activation panel only for a failure; cloud drawers 
 
 test("a model picked in the active cloud engine applies at once; an inactive engine's model waits for its check", async () => {
   const h = harness();
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3" };
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3-turbo";
+  h.context.currentSettings = { provider: "openrouter", model: "microsoft/mai-transcribe-2" };
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b";
   h.context.handleModelChange();
   await h.context.saveSettings();
-  assert.equal(h.saved[0].provider, "groq");
-  assert.equal(h.saved[0].model, "whisper-large-v3-turbo");
-  assert.equal(h.context.currentSettings.model, "whisper-large-v3-turbo");
+  assert.equal(h.saved[0].provider, "openrouter");
+  assert.equal(h.saved[0].model, "qwen/qwen3-asr-1.7b");
+  assert.equal(h.context.currentSettings.model, "qwen/qwen3-asr-1.7b");
 
   const idle = harness();
   idle.context.inspectEngine("openai");
@@ -202,7 +202,7 @@ test("a model picked in the active cloud engine applies at once; an inactive eng
 test("a failure message stays with its engine instead of following the next drawer opened", () => {
   const h = harness();
   vm.runInContext('engineActivationMessage = "Failed to switch"', h.context);
-  h.context.inspectEngine("groq");
+  h.context.inspectEngine("openrouter");
   assert.equal(vm.runInContext("engineActivationMessage", h.context), "");
 });
 
@@ -218,7 +218,7 @@ test("an opened engine that is not usable yet says it is not in use and what the
   h.fields.providerSelect.value = "local-qwen";
   h.context.renderEngineActivation();
   assert.equal(h.fields.engineActivation.hidden, true, "the engine in use needs no hint");
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3-turbo" };
+  h.context.currentSettings = { provider: "openrouter", model: "qwen/qwen3-asr-1.7b" };
   h.fields.providerSelect.value = "local-qwen-large";
   h.context.renderEngineActivation();
   assert.equal(h.fields.engineActivation.hidden, false);
@@ -235,30 +235,30 @@ test("rapid model picks in the active cloud engine save the last one, even mid-s
     first = false;
     return new Promise(resolve => { release = resolve; });
   } });
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3-turbo" };
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3";
+  h.context.currentSettings = { provider: "openrouter", model: "qwen/qwen3-asr-1.7b" };
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "microsoft/mai-transcribe-2";
   h.context.handleModelChange();
   await settle();
   assert.ok(release, "the first save is still in flight");
-  h.fields.modelSelect.value = "whisper-large-v3-turbo";
+  h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b";
   h.context.handleModelChange();
   release();
   await settle();
-  assert.deepEqual(h.saved.map(settings => settings.model), ["whisper-large-v3", "whisper-large-v3-turbo"]);
-  assert.equal(h.context.currentSettings.model, "whisper-large-v3-turbo");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3-turbo");
+  assert.deepEqual(h.saved.map(settings => settings.model), ["microsoft/mai-transcribe-2", "qwen/qwen3-asr-1.7b"]);
+  assert.equal(h.context.currentSettings.model, "qwen/qwen3-asr-1.7b");
+  assert.equal(h.fields.modelSelect.value, "qwen/qwen3-asr-1.7b");
 });
 
 test("a failed model save puts the choice back on the model still in use", async () => {
   const h = harness({ fail: true });
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3-turbo" };
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3";
+  h.context.currentSettings = { provider: "openrouter", model: "qwen/qwen3-asr-1.7b" };
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "microsoft/mai-transcribe-2";
   h.context.handleModelChange();
   await settle();
-  assert.equal(h.context.currentSettings.model, "whisper-large-v3-turbo");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3-turbo");
+  assert.equal(h.context.currentSettings.model, "qwen/qwen3-asr-1.7b");
+  assert.equal(h.fields.modelSelect.value, "qwen/qwen3-asr-1.7b");
   assert.notEqual(vm.runInContext("engineActivationMessage", h.context), "");
 });
 
@@ -270,20 +270,20 @@ test("a queued model pick survives opening another engine's drawer before the sa
     first = false;
     return new Promise(resolve => { release = resolve; });
   } });
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3-turbo" };
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3";
+  h.context.currentSettings = { provider: "openrouter", model: "qwen/qwen3-asr-1.7b" };
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "microsoft/mai-transcribe-2";
   h.context.handleModelChange();
   await settle();
-  h.fields.modelSelect.value = "whisper-large-v3-turbo";
+  h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b";
   h.context.handleModelChange();
   h.context.inspectEngine("openai");
   release();
   await settle();
-  assert.deepEqual(h.saved.map(settings => settings.model), ["whisper-large-v3", "whisper-large-v3-turbo"]);
-  assert.equal(h.context.currentSettings.model, "whisper-large-v3-turbo");
-  h.context.inspectEngine("groq");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3-turbo");
+  assert.deepEqual(h.saved.map(settings => settings.model), ["microsoft/mai-transcribe-2", "qwen/qwen3-asr-1.7b"]);
+  assert.equal(h.context.currentSettings.model, "qwen/qwen3-asr-1.7b");
+  h.context.inspectEngine("openrouter");
+  assert.equal(h.fields.modelSelect.value, "qwen/qwen3-asr-1.7b");
 });
 
 test("reopening the active engine mid-save shows the pick being saved, so picking back undoes it", async () => {
@@ -294,21 +294,21 @@ test("reopening the active engine mid-save shows the pick being saved, so pickin
     first = false;
     return new Promise(resolve => { release = resolve; });
   } });
-  h.context.currentSettings = { provider: "groq", model: "whisper-large-v3-turbo" };
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3";
+  h.context.currentSettings = { provider: "openrouter", model: "qwen/qwen3-asr-1.7b" };
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "microsoft/mai-transcribe-2";
   h.context.handleModelChange();
   await settle();
   h.context.inspectEngine("openai");
-  h.context.inspectEngine("groq");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3", "the drawer shows the pick being saved");
-  h.fields.modelSelect.value = "whisper-large-v3-turbo";
+  h.context.inspectEngine("openrouter");
+  assert.equal(h.fields.modelSelect.value, "microsoft/mai-transcribe-2", "the drawer shows the pick being saved");
+  h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b";
   h.context.handleModelChange();
   release();
   await settle();
-  assert.deepEqual(h.saved.map(settings => settings.model), ["whisper-large-v3", "whisper-large-v3-turbo"]);
-  assert.equal(h.context.currentSettings.model, "whisper-large-v3-turbo");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3-turbo");
+  assert.deepEqual(h.saved.map(settings => settings.model), ["microsoft/mai-transcribe-2", "qwen/qwen3-asr-1.7b"]);
+  assert.equal(h.context.currentSettings.model, "qwen/qwen3-asr-1.7b");
+  assert.equal(h.fields.modelSelect.value, "qwen/qwen3-asr-1.7b");
 });
 
 test("a model picked while switching to that engine is applied once the switch lands", async () => {
@@ -319,15 +319,15 @@ test("a model picked while switching to that engine is applied once the switch l
     first = false;
     return new Promise(resolve => { release = resolve; });
   } });
-  h.context.inspectEngine("groq");
-  h.fields.modelSelect.value = "whisper-large-v3-turbo";
+  h.context.inspectEngine("openrouter");
+  h.fields.modelSelect.value = "qwen/qwen3-asr-1.7b";
   void h.context.activateEngine(h.context.inspectedEngineTarget());
   await settle();
-  h.fields.modelSelect.value = "whisper-large-v3";
+  h.fields.modelSelect.value = "microsoft/mai-transcribe-2";
   h.context.handleModelChange();
   release();
   await settle();
-  assert.deepEqual(h.saved.map(settings => `${settings.provider}/${settings.model}`), ["groq/whisper-large-v3-turbo", "groq/whisper-large-v3"]);
-  assert.equal(h.context.currentSettings.model, "whisper-large-v3");
-  assert.equal(h.fields.modelSelect.value, "whisper-large-v3");
+  assert.deepEqual(h.saved.map(settings => `${settings.provider}/${settings.model}`), ["openrouter/qwen/qwen3-asr-1.7b", "openrouter/microsoft/mai-transcribe-2"]);
+  assert.equal(h.context.currentSettings.model, "microsoft/mai-transcribe-2");
+  assert.equal(h.fields.modelSelect.value, "microsoft/mai-transcribe-2");
 });

@@ -24,9 +24,7 @@ let currentThemePref = "elegant";
 // (the rebuilt <select> lands on it) — keep it in sync with the backend
 // default (settings.rs default_model / save_onboarding_api_key /
 // perform_transcription_request's empty-model fallback). `recommended` adds a
-// localized "★ 推荐" tag to the label. Turbo over lv3 is evidence-backed: the
-// 2026-07-03 punctuation sweep (docs/cloud-transcription.md) showed lv3 collapse to zero
-// punctuation on run-on Chinese speech while turbo+seed punctuates.
+// localized "★ 推荐" tag to the label.
 //
 // OpenAI is deliberately ONE row. `gpt-transcribe` ($0.0045/min, 2026-07-28)
 // dominates the three models dropped on 2026-09-06:
@@ -43,9 +41,11 @@ let currentThemePref = "elegant";
 //     normalization, so that lands in the user's document verbatim. The 33%
 //     saving is ~$0.68/month at 15 min/day of real audio — not worth it.
 const modelOptions = {
-  groq: [
-    { value: "whisper-large-v3-turbo", labelKey: "settings.model.options.whisperLargeV3Turbo", recommended: true },
-    { value: "whisper-large-v3", labelKey: "settings.model.options.whisperLargeV3" },
+  // OpenRouter: chosen in the 2026-11 comparison (docs/cloud-transcription.md).
+  // Keep in sync with settings.rs OPENROUTER_MODELS.
+  openrouter: [
+    { value: "qwen/qwen3-asr-1.7b", labelKey: "settings.model.options.qwenCloud", recommended: true },
+    { value: "microsoft/mai-transcribe-2", labelKey: "settings.model.options.maiTranscribe" },
   ],
   openai: [
     { value: "gpt-transcribe", labelKey: "settings.model.options.gptTranscribe", recommended: true },
@@ -210,8 +210,8 @@ function renderSettingChoices() {
     for (const button of group.children) {
       const option = options.find(option => option.value === button.dataset.value);
       const modelLabels = {
-        "whisper-large-v3-turbo": "Large V3 Turbo",
-        "whisper-large-v3": "Large V3",
+        "qwen/qwen3-asr-1.7b": "Qwen3-ASR 1.7B",
+        "microsoft/mai-transcribe-2": "MAI-Transcribe-2",
         "gpt-transcribe": "GPT Transcribe",
       };
       button.querySelector(".choice-label").textContent = id === "modelSelect"
@@ -223,9 +223,10 @@ function renderSettingChoices() {
   }
 }
 
-// Rates and tradeoffs verified against OpenAI/Groq model documentation.
+// OpenAI's rate is from its model page; OpenRouter's are the per-second
+// prices it billed in the 2026-11 comparison.
 // https://developers.openai.com/api/docs/models/gpt-transcribe
-// https://console.groq.com/docs/speech-to-text
+// https://openrouter.ai/models?output_modalities=transcription
 function renderModelChoices(select, group, options) {
   const single = options.length === 1;
   const hint = select.closest(".setting-item")?.querySelector(".setting-description");
@@ -261,8 +262,8 @@ function renderModelChoices(select, group, options) {
   }
   const metadata = {
     "gpt-transcribe": ["GPT Transcribe", "modelOpenaiPrice", "modelOpenaiDetail"],
-    "whisper-large-v3-turbo": ["Large V3 Turbo", "modelTurboPrice", "modelTurboDetail"],
-    "whisper-large-v3": ["Large V3", "modelV3Price", "modelV3Detail"],
+    "qwen/qwen3-asr-1.7b": ["Qwen3-ASR 1.7B", "modelQwenCloudPrice", "modelQwenCloudDetail"],
+    "microsoft/mai-transcribe-2": ["MAI-Transcribe-2", "modelMaiPrice", "modelMaiDetail"],
   };
   for (const item of group.children) {
     const value = item.dataset.value;
@@ -271,7 +272,7 @@ function renderModelChoices(select, group, options) {
     item.querySelector(".model-price").textContent = data[1] ? translate(`settings.${data[1]}`) : "";
     item.querySelector(".model-detail").textContent = data[2] ? translate(`settings.${data[2]}`) : "";
     const recommended = item.querySelector(".model-recommended");
-    recommended.hidden = value !== "whisper-large-v3-turbo";
+    recommended.hidden = value !== "qwen/qwen3-asr-1.7b";
     recommended.textContent = translate("settings.engine.recommended");
     if (!single) {
       item.setAttribute("aria-pressed", String(value === select.value));
@@ -303,13 +304,14 @@ function updateModelOptions(provider) {
 // local rows the download state — the two things that decide whether a choice
 // is usable at all, which a bare dropdown could not show.
 // Qwen is one row whose two sizes are picked inside its drawer, so the 1.7B
-// entry has no row of its own ("size"). Groq and Nemotron sit behind "More
-// engines" unless one of them is in use.
+// entry has no row of its own ("size"). OpenAI and Nemotron sit behind "More
+// engines" unless one of them is in use: OpenRouter is cheaper than OpenAI and
+// its MAI model was more accurate in the 2026-11 comparison.
 const ENGINE_CARDS = [
   { value: LOCAL_QWEN_PROVIDER, local: true, icon: "memory", recommended: true, group: "main" },
   { value: LOCAL_QWEN_LARGE_PROVIDER, local: true, icon: "memory", group: "size" },
-  { value: "openai", local: false, icon: "cloud", group: "main" },
-  { value: "groq", local: false, icon: "cloud", group: "more" },
+  { value: "openrouter", local: false, icon: "cloud", group: "main" },
+  { value: "openai", local: false, icon: "cloud", group: "more" },
   { value: LOCAL_NEMOTRON_PROVIDER, local: true, icon: "memory", experimental: true, group: "more" },
 ];
 const QWEN_CHOICES = [LOCAL_QWEN_PROVIDER, LOCAL_QWEN_LARGE_PROVIDER];
@@ -397,7 +399,7 @@ function engineStatus(entry) {
     if (status.state === "downloading") return { key: "settings.engine.status.downloading", tone: "busy" };
     return { key: "settings.engine.status.needsDownload", tone: "warn" };
   }
-  const field = entry.value === "groq" ? "apiKeyGroq" : "apiKeyOpenAI";
+  const field = entry.value === "openrouter" ? "apiKeyOpenRouter" : "apiKeyOpenAI";
   const hasKey = !!document.getElementById(field)?.value.trim();
   return hasKey
     ? { key: "settings.engine.status.keySet", tone: "ok" }
@@ -766,7 +768,7 @@ function localModelForProvider(provider) {
 
 function providerForSettings(settings) {
   if (settings?.provider !== "local") {
-    return settings?.provider || "groq";
+    return settings?.provider || "openrouter";
   }
   if (settings.model === QWEN_LARGE_LOCAL_MODEL) return LOCAL_QWEN_LARGE_PROVIDER;
   return settings.model === NEMOTRON_LOCAL_MODEL
@@ -798,9 +800,9 @@ function toggleProviderFields(providerChoice) {
   const apiKeyItem = document.getElementById("apiKeyItem");
   const modelItem = document.getElementById("modelItem");
   const nemotronLatencyItem = document.getElementById("nemotronLatencyItem");
-  const fieldGroq = document.getElementById("apiKeyFieldGroq");
+  const fieldOpenRouter = document.getElementById("apiKeyFieldOpenRouter");
   const fieldOpenAI = document.getElementById("apiKeyFieldOpenAI");
-  if (!fieldGroq || !fieldOpenAI) {
+  if (!fieldOpenRouter || !fieldOpenAI) {
     return;
   }
 
@@ -839,7 +841,7 @@ function toggleProviderFields(providerChoice) {
       "hidden",
       !gpuRuntimeSupported || ![LOCAL_QWEN_PROVIDER, LOCAL_QWEN_LARGE_PROVIDER].includes(configurationProvider)
     );
-  fieldGroq.classList.toggle("hidden", provider !== "groq");
+  fieldOpenRouter.classList.toggle("hidden", provider !== "openrouter");
   fieldOpenAI.classList.toggle("hidden", provider !== "openai");
   syncEngineDrawer();
 }
@@ -1621,7 +1623,7 @@ function inspectEngine(providerChoice, { toggle = false } = {}) {
 }
 
 function handleProviderChange(event) {
-  inspectEngine(event.target.value || "groq");
+  inspectEngine(event.target.value || "openrouter");
 }
 
 function handleThemeChange(event) {
@@ -1753,7 +1755,7 @@ function bindEventHandlers() {
   // in the same main window and must not trigger a settings write.
   const settingsPage = document.querySelector("#settings-page");
   settingsPage?.addEventListener("change", commitNow);
-  for (const id of ["apiKeyGroq", "apiKeyOpenAI"]) {
+  for (const id of ["apiKeyOpenRouter", "apiKeyOpenAI"]) {
     document.getElementById(id)?.addEventListener("input", () => renderEngineCards());
   }
   settingsPage?.addEventListener("input", (event) => {
@@ -2218,7 +2220,7 @@ async function loadSettings() {
     initI18n(currentSettings.uiLanguage);
     applyTheme(currentSettings.uiTheme);
 
-    const provider = currentSettings.provider || "groq";
+    const provider = currentSettings.provider || "openrouter";
     const providerChoice = providerForSettings(currentSettings);
     const providerSelect = document.getElementById("providerSelect");
     const uiLanguageSelect = document.getElementById("uiLanguageSelect");
@@ -2230,7 +2232,7 @@ async function loadSettings() {
     const startMinimizedCheck = document.getElementById("startMinimizedCheck");
     const mergeSpelledLettersCheck = document.getElementById("mergeSpelledLettersCheck");
     const removeFillerWordsCheck = document.getElementById("removeFillerWordsCheck");
-    const apiKeyGroq = document.getElementById("apiKeyGroq");
+    const apiKeyOpenRouter = document.getElementById("apiKeyOpenRouter");
     const apiKeyOpenAI = document.getElementById("apiKeyOpenAI");
 
     // Captured out of the payload: saveSettings replaces currentSettings with
@@ -2244,7 +2246,7 @@ async function loadSettings() {
     applyNemotronAvailability();
     inspectedLocalModel = null;
     engineCloudDrafts.clear();
-    setSelectValue(providerSelect, providerChoice, "groq");
+    setSelectValue(providerSelect, providerChoice, "openrouter");
     expandedEngineProvider = providerSelect?.value || providerChoice;
     if (provider !== "local") {
       updateModelOptions(provider);
@@ -2254,8 +2256,8 @@ async function loadSettings() {
     // fallback, and the dependent fields must follow what is on screen.
     toggleProviderFields(providerSelect?.value || providerChoice);
 
-    if (apiKeyGroq) {
-      apiKeyGroq.value = apiKeys.apiKeyGroq || apiKeys.apiKey || "";
+    if (apiKeyOpenRouter) {
+      apiKeyOpenRouter.value = apiKeys.apiKeyOpenRouter || apiKeys.apiKey || "";
     }
     if (apiKeyOpenAI) {
       apiKeyOpenAI.value = apiKeys.apiKeyOpenAI || "";
@@ -2326,8 +2328,8 @@ function inspectedEngineTarget() {
 function engineTargetLabel(target) {
   if (target.provider !== "local") {
     const labels = {
-      "whisper-large-v3": "settings.engine.whisperLarge",
-      "whisper-large-v3-turbo": "settings.engine.whisperTurbo",
+      "qwen/qwen3-asr-1.7b": "settings.engine.qwenCloud",
+      "microsoft/mai-transcribe-2": "settings.engine.maiTranscribe",
       "gpt-transcribe": "settings.engine.gptTranscribe",
     };
     return labels[target.model] ? translate(labels[target.model]) : target.model;
@@ -2493,13 +2495,13 @@ async function persistSettings(intent = null) {
       if (target.provider !== "local") {
         const options = modelOptions[target.provider];
         if (!options?.some((option) => option.value === target.model)) throw new Error(translate("settings.engine.invalidModel"));
-        const keyId = target.provider === "openai" ? "apiKeyOpenAI" : "apiKeyGroq";
+        const keyId = target.provider === "openai" ? "apiKeyOpenAI" : "apiKeyOpenRouter";
         if (!document.getElementById(keyId)?.value.trim()) throw new Error(translate("settings.engine.keyRequired"));
       }
     }
     const themeSelect = document.getElementById("themeSelect");
     const settings = {
-      apiKeyGroq: document.getElementById("apiKeyGroq")?.value || "",
+      apiKeyOpenRouter: document.getElementById("apiKeyOpenRouter")?.value || "",
       apiKeyOpenAI: document.getElementById("apiKeyOpenAI")?.value || "",
       shortcut: currentSettings.shortcut || "Ctrl+Shift",
       language: document.getElementById("languageSelect")?.value || "auto",

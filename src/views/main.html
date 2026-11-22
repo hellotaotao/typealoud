@@ -345,10 +345,6 @@
         <div class="dictionary-about-body">
           <p data-i18n="dictionary.aboutWhat">Type a word and press Enter, or paste a list separated by commas. Changes save automatically.</p>
           <p data-i18n="dictionary.aboutHow">When you use a cloud engine, these words go to the model as a reference. They are more likely to come out right, but not every time.</p>
-          <h3 data-i18n="dictionary.punctuationTitle">Automatic punctuation for Chinese</h3>
-          <p data-i18n="dictionary.punctuationDesc">When Whisper transcribes Chinese, TypeAloud sends the example below to the model to help it add punctuation. The example is fixed and contains none of your data; GPT models and other languages don't use it.</p>
-          <!-- Read-only display. Mirrors SEED_ZH in src-tauri/src/commands.rs — keep the two in sync. -->
-          <pre class="punctuation-seed" id="punctuation-seed">以下是一段简体中文语音的转写记录。你好，欢迎使用听写工具。今天的会议进展如何？太好了，我们继续！</pre>
         </div>
       </details>
     </div>
@@ -390,8 +386,8 @@
               <div class="engine-cards" id="engineCards" role="group" aria-label="Transcription engine"></div>
               <div class="setting-control setting-control-fallback">
                 <select class="input provider-select" id="providerSelect" title="Select transcription provider" data-i18n="settings.apiProvider.selectTitle" data-i18n-attr="title">
+                  <option value="openrouter">OpenRouter</option>
                   <option value="openai">OpenAI</option>
-                  <option value="groq">Groq</option>
                   <option value="local-qwen" data-i18n="settings.apiProvider.localQwen">Local · Qwen3-ASR · ★ Recommended</option>
                   <option value="local-qwen-large" data-i18n="settings.apiProvider.localQwenLarge">Local · Qwen3-ASR 1.7B</option>
                   <option value="local-nemotron" data-i18n="settings.apiProvider.localNemotron">Local · Nemotron 3.5 ASR</option>
@@ -412,9 +408,9 @@
                 </div>
               </div>
               <div class="setting-control">
-                <div class="api-key-field hidden" id="apiKeyFieldGroq">
-                  <input type="password" class="input api-key-input" id="apiKeyGroq" placeholder="Groq API key" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n="settings.apiKey.groqPlaceholder" data-i18n-attr="placeholder" />
-                  <button type="button" class="reveal-btn material-icons" data-target="apiKeyGroq" aria-label="Show key" title="Show key" data-i18n="settings.apiKey.reveal" data-i18n-attr="aria-label,title">visibility</button>
+                <div class="api-key-field hidden" id="apiKeyFieldOpenRouter">
+                  <input type="password" class="input api-key-input" id="apiKeyOpenRouter" placeholder="OpenRouter API key" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n="settings.apiKey.openrouterPlaceholder" data-i18n-attr="placeholder" />
+                  <button type="button" class="reveal-btn material-icons" data-target="apiKeyOpenRouter" aria-label="Show key" title="Show key" data-i18n="settings.apiKey.reveal" data-i18n-attr="aria-label,title">visibility</button>
                 </div>
                 <div class="api-key-field hidden" id="apiKeyFieldOpenAI">
                   <input type="password" class="input api-key-input" id="apiKeyOpenAI" placeholder="OpenAI API key" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n="settings.apiKey.openaiPlaceholder" data-i18n-attr="placeholder" />
@@ -432,8 +428,8 @@
               </div>
               <div class="setting-control">
                 <select class="input model-select" id="modelSelect" title="Select transcription model" data-i18n="settings.model.selectTitle" data-i18n-attr="title">
-                  <option value="whisper-large-v3-turbo">Whisper Large V3 Turbo (Faster) · ★ Recommended</option>
-                  <option value="whisper-large-v3">Whisper Large V3 (Standard)</option>
+                  <option value="qwen/qwen3-asr-1.7b">Qwen3-ASR 1.7B · ★ Recommended</option>
+                  <option value="microsoft/mai-transcribe-2">MAI-Transcribe-2</option>
                 </select>
               </div>
             </div>

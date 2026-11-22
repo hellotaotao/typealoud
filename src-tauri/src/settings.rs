@@ -52,6 +52,12 @@ fn default_microphone() -> String {
   "default".into()
 }
 
+pub const OPENROUTER_PROVIDER: &str = "openrouter";
+/// OpenRouter speech-to-text models offered in Settings, default first. Chosen
+/// from the 2026-11 comparison in docs/cloud-transcription.md.
+pub const OPENROUTER_MODELS: &[&str] = &["qwen/qwen3-asr-1.7b", "microsoft/mai-transcribe-2"];
+pub const OPENROUTER_DEFAULT_MODEL: &str = "qwen/qwen3-asr-1.7b";
+
 fn default_provider() -> String {
   "openai".into()
 }
@@ -86,8 +92,8 @@ fn default_shortcut() -> String {
 pub struct AppConfig {
   #[serde(default)]
   pub api_key: String,
-  #[serde(default)]
-  pub api_key_groq: String,
+  #[serde(default, rename = "apiKeyOpenRouter")]
+  pub api_key_openrouter: String,
   #[serde(default, rename = "apiKeyOpenAI")]
   pub api_key_openai: String,
   #[serde(default = "default_shortcut")]
@@ -150,7 +156,7 @@ impl Default for AppConfig {
   fn default() -> Self {
     Self {
       api_key: String::new(),
-      api_key_groq: String::new(),
+      api_key_openrouter: String::new(),
       api_key_openai: String::new(),
       shortcut: default_shortcut(),
       language: default_language(),
@@ -273,8 +279,8 @@ impl SettingsPayload {
     let engine_blocker = match config.provider.as_str() {
       "local" if !local_model_ready => "local-model-missing",
       "local" => "",
-      "groq" | "openai" if selected_api_key(config).trim().is_empty() => "api-key-missing",
-      "groq" | "openai" => "",
+      "openrouter" | "openai" if selected_api_key(config).trim().is_empty() => "api-key-missing",
+      "openrouter" | "openai" => "",
       _ => "provider-invalid",
     };
     Self {
@@ -424,7 +430,10 @@ pub fn new_install_shortcut() -> &'static str {
 pub fn fresh_config_for(tier: crate::hardware::LocalTier) -> AppConfig {
   let mut config = AppConfig::default();
   config.shortcut = new_install_shortcut().into();
-  if tier != crate::hardware::LocalTier::CloudDefault {
+  if tier == crate::hardware::LocalTier::CloudDefault {
+    config.provider = OPENROUTER_PROVIDER.into();
+    config.model = OPENROUTER_DEFAULT_MODEL.into();
+  } else {
     config.provider = crate::local_asr::LOCAL_PROVIDER.into();
     config.model = crate::local_asr::QWEN_MODEL_ID.into();
   }
@@ -437,9 +446,27 @@ fn read_config_from_path_with_tier(path: &Path, tier: crate::hardware::LocalTier
     Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(fresh_config_for(tier)),
     Err(error) => return Err(error).with_context(|| format!("failed to read {}", path.display())),
   };
-  let config = serde_json::from_str::<AppConfig>(&text)
+  let mut config = serde_json::from_str::<AppConfig>(&text)
     .with_context(|| format!("failed to parse {}", path.display()))?;
+  migrate_removed_providers(&mut config);
   Ok(config)
+}
+
+/// Groq was removed in favour of OpenRouter (2026-11-23). An install still on
+/// Groq moves to OpenRouter's default model; its Groq key cannot be used there,
+/// so the engine shows "needs a key" until one is entered. The legacy `api_key`
+/// mirror held the Groq key and is cleared so it can never reach another
+/// provider. The `apiKeyGroq` field itself is no longer read.
+fn migrate_removed_providers(config: &mut AppConfig) {
+  if config.provider == "groq" {
+    config.provider = OPENROUTER_PROVIDER.into();
+    config.model = OPENROUTER_DEFAULT_MODEL.into();
+    config.api_key.clear();
+  } else if config.provider == OPENROUTER_PROVIDER
+    && !OPENROUTER_MODELS.contains(&config.model.as_str())
+  {
+    config.model = OPENROUTER_DEFAULT_MODEL.into();
+  }
 }
 
 fn mutate_config_at(
@@ -495,16 +522,14 @@ pub fn atomic_write(path: &Path, contents: &str) -> Result<()> {
 }
 
 pub fn selected_api_key(config: &AppConfig) -> String {
-  let key = match config.provider.as_str() {
-    "openai" => &config.api_key_openai,
-    "groq" => &config.api_key_groq,
-    _ => return String::new(),
-  };
-  if !key.trim().is_empty() {
-    return key.clone();
+  match config.provider.as_str() {
+    // The legacy single `api_key` predates per-provider keys and only ever
+    // held an OpenAI or Groq key, so it is never sent to OpenRouter.
+    "openai" if config.api_key_openai.trim().is_empty() => config.api_key.clone(),
+    "openai" => config.api_key_openai.clone(),
+    OPENROUTER_PROVIDER => config.api_key_openrouter.clone(),
+    _ => String::new(),
   }
-
-  config.api_key.clone()
 }
 
 pub fn normalize_record_shortcut(value: &str) -> String {
@@ -598,7 +623,7 @@ mod tests {
       AppConfig::default(),
       fresh_config_for(LocalTier::Qwen),
       fresh_config_for(LocalTier::CloudDefault),
-      serde_json::from_str::<AppConfig>(r#"{"provider":"groq"}"#).unwrap(),
+      serde_json::from_str::<AppConfig>(r#"{"provider":"openrouter"}"#).unwrap(),
     ] {
       assert_eq!(serde_json::to_value(config).unwrap()["mergeSpelledLetters"], true);
     }
@@ -632,7 +657,7 @@ mod tests {
       AppConfig::default(),
       fresh_config_for(LocalTier::Qwen),
       fresh_config_for(LocalTier::CloudDefault),
-      serde_json::from_str::<AppConfig>(r#"{"provider":"groq"}"#).unwrap(),
+      serde_json::from_str::<AppConfig>(r#"{"provider":"openrouter"}"#).unwrap(),
     ] {
       assert_eq!(serde_json::to_value(config).unwrap()["removeFillerWords"], true);
     }
@@ -723,7 +748,7 @@ mod tests {
     assert_eq!(fresh_config_for(LocalTier::CloudDefault).shortcut, new_install_shortcut());
     // A saved config without the field, and the struct default, keep the old one.
     assert_eq!(AppConfig::default().shortcut, DEFAULT_RECORD_SHORTCUT);
-    let saved: AppConfig = serde_json::from_str(r#"{"provider":"groq"}"#).unwrap();
+    let saved: AppConfig = serde_json::from_str(r#"{"provider":"openrouter"}"#).unwrap();
     assert_eq!(saved.shortcut, DEFAULT_RECORD_SHORTCUT);
     assert_eq!(normalize_record_shortcut(new_install_shortcut()), new_install_shortcut());
   }
@@ -736,9 +761,9 @@ mod tests {
       &path,
       r#"{
         "apiKey":"legacy",
-        "apiKeyGroq":"gsk",
+        "apiKeyOpenRouter":"gsk",
         "apiKeyOpenAI":"osk",
-        "provider":"groq",
+        "provider":"openrouter",
         "language":"en",
         "uiTheme":"midnight"
       }"#,
@@ -747,9 +772,9 @@ mod tests {
 
     let config = read_config_from_path(&path).unwrap();
     assert_eq!(config.api_key, "legacy");
-    assert_eq!(config.api_key_groq, "gsk");
+    assert_eq!(config.api_key_openrouter, "gsk");
     assert_eq!(config.api_key_openai, "osk");
-    assert_eq!(config.provider, "groq");
+    assert_eq!(config.provider, "openrouter");
     assert_eq!(config.language, "en");
     assert_eq!(config.nemotron_latency_ms, DEFAULT_NEMOTRON_LATENCY_MS);
   }
@@ -765,8 +790,8 @@ mod tests {
       assert_eq!(config.model, crate::local_asr::QWEN_MODEL_ID);
     }
     let cloud = read_config_from_path_with_tier(&path, LocalTier::CloudDefault).unwrap();
-    assert_eq!(cloud.provider, "openai");
-    assert_eq!(cloud.model, "gpt-transcribe");
+    assert_eq!(cloud.provider, "openrouter");
+    assert_eq!(cloud.model, OPENROUTER_DEFAULT_MODEL);
     assert_eq!(AppConfig::default().provider, "openai");
     assert_eq!(AppConfig::default().model, "gpt-transcribe");
     assert!(!path.exists());
@@ -778,11 +803,11 @@ mod tests {
     let temp = tempfile::TempDir::new().unwrap();
     let path = temp.path().join("config.json");
     for tier in [LocalTier::CloudDefault, LocalTier::Qwen] {
-      fs::write(&path, r#"{"provider":"groq","model":"whisper-large-v3","apiKeyGroq":"gsk"}"#).unwrap();
+      fs::write(&path, r#"{"provider":"openrouter","model":"microsoft/mai-transcribe-2","apiKeyOpenRouter":"sk-or"}"#).unwrap();
       let config = read_config_from_path_with_tier(&path, tier).unwrap();
-      assert_eq!(config.provider, "groq");
-      assert_eq!(config.model, "whisper-large-v3");
-      assert_eq!(config.api_key_groq, "gsk");
+      assert_eq!(config.provider, "openrouter");
+      assert_eq!(config.model, "microsoft/mai-transcribe-2");
+      assert_eq!(config.api_key_openrouter, "sk-or");
       fs::write(&path, "{}").unwrap();
       let legacy = read_config_from_path_with_tier(&path, tier).unwrap();
       assert_eq!(legacy.provider, "openai");
@@ -903,7 +928,7 @@ mod tests {
     // the wizard shows exactly once for them.
     let temp = tempfile::TempDir::new().unwrap();
     let path = temp.path().join("config.json");
-    fs::write(&path, r#"{ "provider": "groq" }"#).unwrap();
+    fs::write(&path, r#"{ "provider": "openrouter" }"#).unwrap();
     let config = read_config_from_path(&path).unwrap();
     assert!(!config.onboarding_completed);
 
@@ -923,19 +948,58 @@ mod tests {
     // OpenAI key present → selected provider has a usable key.
     config.api_key_openai = "sk-x".into();
     assert!(SettingsPayload::from_config(&config).engine_ready);
-    // Switch to groq with no groq key and no legacy key → none usable.
-    config.provider = "groq".into();
+    // Switch to openrouter with no openrouter key → none usable, and the
+    // legacy shared key (an OpenAI or Groq key) is never used for it.
+    config.provider = "openrouter".into();
     assert!(!SettingsPayload::from_config(&config).engine_ready);
-    // Legacy shared key acts as the fallback for the selected provider.
     config.api_key = "legacy".into();
+    assert!(!SettingsPayload::from_config(&config).engine_ready);
+    config.api_key_openrouter = "sk-or".into();
     assert!(SettingsPayload::from_config(&config).engine_ready);
+    // For OpenAI the legacy key is still the fallback.
+    config.provider = "openai".into();
+    config.api_key_openai.clear();
+    assert!(SettingsPayload::from_config(&config).engine_ready);
+  }
+
+  #[test]
+  fn groq_installs_move_to_openrouter_without_their_groq_key() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let path = temp.path().join("config.json");
+    fs::write(
+      &path,
+      r#"{"provider":"groq","model":"whisper-large-v3-turbo","apiKeyGroq":"gsk","apiKey":"gsk","apiKeyOpenAI":"osk"}"#,
+    )
+    .unwrap();
+    let config = read_config_from_path(&path).unwrap();
+    assert_eq!(config.provider, "openrouter");
+    assert_eq!(config.model, OPENROUTER_DEFAULT_MODEL);
+    assert_eq!(config.api_key, "");
+    assert_eq!(config.api_key_openai, "osk");
+    assert_eq!(selected_api_key(&config), "");
+    assert_eq!(SettingsPayload::from_config(&config).engine_blocker, "api-key-missing");
+    // Writing it back drops the Groq key for good.
+    write_config_to_path(&path, &config).unwrap();
+    assert!(!fs::read_to_string(&path).unwrap().contains("gsk"));
+  }
+
+  #[test]
+  fn openrouter_with_an_unknown_model_falls_back_to_the_default() {
+    let mut config: AppConfig =
+      serde_json::from_str(r#"{"provider":"openrouter","model":"gpt-transcribe"}"#).unwrap();
+    migrate_removed_providers(&mut config);
+    assert_eq!(config.model, OPENROUTER_DEFAULT_MODEL);
+    let mut other: AppConfig =
+      serde_json::from_str(r#"{"provider":"openai","model":"gpt-transcribe"}"#).unwrap();
+    migrate_removed_providers(&mut other);
+    assert_eq!(other.model, "gpt-transcribe");
   }
 
   #[test]
   fn selected_api_key_is_empty_for_local_provider() {
     let mut config = AppConfig::default();
     config.provider = "local".into();
-    config.api_key_groq = "gsk".into();
+    config.api_key_openrouter = "gsk".into();
     config.api_key = "legacy".into();
     assert_eq!(selected_api_key(&config), "");
   }
@@ -944,7 +1008,7 @@ mod tests {
   fn unknown_provider_never_exposes_a_stored_key() {
     let mut config = AppConfig::default();
     config.api_key = "legacy".into();
-    config.api_key_groq = "gsk".into();
+    config.api_key_openrouter = "gsk".into();
     config.api_key_openai = "osk".into();
     for provider in ["", "unexpected", "OPENAI", " openai"] {
       config.provider = provider.into();
@@ -969,21 +1033,21 @@ mod tests {
       ("local", false, "", "local-model-missing"),
       ("local", true, "", ""),
       ("openai", true, "", "api-key-missing"),
-      ("groq", true, " ", "api-key-missing"),
+      ("openrouter", true, " ", "api-key-missing"),
       ("openai", false, "sk-test", ""),
-      ("groq", false, "gsk-test", ""),
+      ("openrouter", false, "gsk-test", ""),
       ("invalid", true, "secret", "provider-invalid"),
     ] {
       let mut config = AppConfig::default();
       config.provider = provider.into();
       config.api_key_openai = key.into();
-      config.api_key_groq = key.into();
+      config.api_key_openrouter = key.into();
       config.api_key = key.into();
       let payload = SettingsPayload::from_config_with(&config, ready);
       assert_eq!(payload.engine_blocker, blocker, "{provider}");
       assert_eq!(payload.engine_ready, blocker.is_empty(), "{provider}");
       let payload = serde_json::to_value(payload).unwrap();
-      for secret_field in ["apiKey", "apiKeyGroq", "apiKeyOpenAI", "hasApiKey"] {
+      for secret_field in ["apiKey", "apiKeyOpenRouter", "apiKeyOpenAI", "hasApiKey"] {
         assert!(payload.get(secret_field).is_none());
       }
       assert!(payload["localTier"].is_string());
@@ -997,8 +1061,8 @@ mod tests {
     config.provider = "local".into();
     assert!(SettingsPayload::from_config_with(&config, true).engine_ready);
     assert!(!SettingsPayload::from_config_with(&config, false).engine_ready);
-    config.provider = "groq".into();
-    config.api_key_groq = "gsk".into();
+    config.provider = "openrouter".into();
+    config.api_key_openrouter = "gsk".into();
     assert!(SettingsPayload::from_config_with(&config, false).engine_ready);
   }
 

@@ -824,7 +824,7 @@ test("Qwen prewarm eligibility requires an active recording", async () => {
   recordingSession.qwenSession = false;
   prompt.prewarmQwenWorker(recordingSession);
   recordingSession.qwenSession = true;
-  prompt.currentProvider = "groq";
+  prompt.currentProvider = "openrouter";
   prompt.prewarmQwenWorker(recordingSession);
   assert.deepEqual(calls, [["prewarm-qwen-worker", [42]]]);
 });
@@ -1584,7 +1584,7 @@ test("a decoded chunk keeps the session worker ready, and the final chunk does n
   // A provider switch mid-dictation must not start a Qwen worker either.
   calls.length = 0;
   prompt.isRecording = true;
-  prompt.currentProvider = "groq";
+  prompt.currentProvider = "openrouter";
   prompt.enqueueChunkDecode(chunked, new Float32Array(160));
   await chunked.queue;
   await Promise.resolve();
@@ -2849,7 +2849,7 @@ test("cancelling late WAV encoding prevents a subsequent audio persistence reque
 });
 
 test("late cloud audio stays in memory without raw persistence or rerouting", async () => {
-  for (const route of [{ provider: "openai" }, { provider: "groq" }]) {
+  for (const route of [{ provider: "openai" }, { provider: "openrouter" }]) {
     const h = await createLifecycleHarness({ batch: true,
       vadGate: { encodeFullWav: async () => { throw new Error("must not encode cloud recovery"); } } });
     Object.assign(h.session, route);

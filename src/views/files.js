@@ -45,7 +45,7 @@ function formatClock(seconds) {
 
 function engineName(provider, model) {
   if (provider === "openai") return "OpenAI";
-  if (provider === "groq") return "Groq";
+  if (provider === "openrouter") return "OpenRouter";
   const id = String(model || "").toLowerCase();
   if (id.includes("nemotron")) return "Nemotron";
   if (id.includes("1.7b")) return translate("home.engineLocalQwenLarge");
@@ -107,7 +107,7 @@ function renderEngineNote() {
   if (!note || !settings) return;
   const provider = settings.provider;
   const name = engineName(provider, settings.model);
-  const local = provider !== "openai" && provider !== "groq";
+  const local = provider !== "openai" && provider !== "openrouter";
   note.classList.toggle("files-engine-cloud", !local);
   const text = document.createElement("span");
   text.textContent = translate(local ? "files.engineLocal" : "files.engineCloud", { engine: name });

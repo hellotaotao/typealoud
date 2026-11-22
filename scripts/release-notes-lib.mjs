@@ -54,7 +54,7 @@ export function assembleMaterial(commits, maxTotalChars = 60000) {
 }
 
 export function buildPrompt({ tag, prevTag, material }) {
-  const system = `You write GitHub release notes for TypeAloud, a hold-a-hotkey voice-dictation desktop app (macOS today; it records speech, transcribes it via a cloud Whisper API, and types the text into the focused app).
+  const system = `You write GitHub release notes for TypeAloud, a hold-a-hotkey voice-dictation desktop app (macOS, Windows and Linux; it records speech, transcribes it on the device or through an optional cloud service, and types the text into the focused app).
 
 You are given every commit between the previous release tag and the current one: full commit messages (the primary source — their bodies explain intent), plus file-change stats and truncated diffs where they fit.
 

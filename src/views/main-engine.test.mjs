@@ -16,7 +16,7 @@ function harness(fail = false) {
     renderEngineCard() {},
     showNotification: (...args) => notices.push(args),
     console,
-    ipc: { invoke: async (...args) => { calls.push(args); if(args[0] === "get-api-keys") return {apiKeyOpenAI:"test", apiKeyGroq:"test"}; if(args[0] === "get-local-model-status") return { state: fail ? "absent" : "ready" }; return true; } },
+    ipc: { invoke: async (...args) => { calls.push(args); if(args[0] === "get-api-keys") return {apiKeyOpenAI:"test", apiKeyOpenRouter:"test"}; if(args[0] === "get-local-model-status") return { state: fail ? "absent" : "ready" }; return true; } },
   });
   vm.runInContext(entrypoint, context);
   return { context, calls, pages, notices };
@@ -66,11 +66,11 @@ test("missing local assets still save selection before showing setup", async () 
 
 const availabilitySource = source.slice(source.indexOf("const engineAvailability ="), source.indexOf("function renderEngineCard()"));
 function availabilityHarness() {
- const options = [{value:"local-qwen",model:"small"},{value:"local-qwen-large",model:"large"},{value:"openai"},{value:"groq"}];
+ const options = [{value:"local-qwen",model:"small"},{value:"local-qwen-large",model:"large"},{value:"openai"},{value:"openrouter"}];
  const context = vm.createContext({
   ENGINE_OPTIONS: options, availableEngineOptions: () => options,
   renderEngineCard() {}, t: (key, params) => params ? `${key}:${params.percent}` : key,
-  ipc: {invoke: async (command) => command === "get-api-keys" ? {apiKeyOpenAI:" secret ",apiKeyGroq:" "} : {state:"ready"}},
+  ipc: {invoke: async (command) => command === "get-api-keys" ? {apiKeyOpenAI:" secret ",apiKeyOpenRouter:" "} : {state:"ready"}},
  });
  vm.runInContext(availabilitySource,context);
  return {context,options, get: value => vm.runInContext(`engineAvailability.get("${value}")`, context)};
@@ -102,11 +102,11 @@ test("latest refresh wins and readiness completion does not switch engines", asy
  const calls=[];
  h.context.ipc.invoke=async(command,model)=> {calls.push(command); return command === "get-api-keys" ? {} : model === "small" ? await new Promise(resolve=>{finish=resolve;}) : {state:"ready"};};
  const old=h.context.refreshEngineAvailability();
- h.context.ipc.invoke=async(command)=> {calls.push(command); return command === "get-api-keys" ? {apiKeyGroq:"key"} : {state:"ready"};};
+ h.context.ipc.invoke=async(command)=> {calls.push(command); return command === "get-api-keys" ? {apiKeyOpenRouter:"key"} : {state:"ready"};};
  await h.context.refreshEngineAvailability();
  finish({state:"absent"}); await old;
  assert.equal(h.get("local-qwen").state,"ready");
- assert.equal(h.get("groq").state,"ready");
+ assert.equal(h.get("openrouter").state,"ready");
  assert.equal(calls.some(command=>command.startsWith("set-")),false);
 });
 
@@ -129,11 +129,11 @@ test("home mutations are dispatched through the Settings shared save queue", asy
   assert.equal(h.pages.length, 0);
 });
 
-test("home shows Qwen as one engine at its current or last size, OpenAI, the engine in use, and More", () => {
+test("home shows Qwen as one engine at its current or last size, OpenRouter, the engine in use, and More", () => {
   const home = source.slice(source.indexOf("const QWEN_SIZE_LABELS"), source.indexOf("function renderEngineCard()"));
   const options = [
     { value: "local-qwen", model: "small" }, { value: "local-qwen-large", model: "large" },
-    { value: "openai", label: "OpenAI" }, { value: "groq", label: "Groq" }, { value: "local-nemotron", labelKey: "nemo", model: "nemo" },
+    { value: "openrouter", label: "OpenRouter" }, { value: "openai", label: "OpenAI" }, { value: "local-nemotron", labelKey: "nemo", model: "nemo" },
   ];
   const run = (selected, qwenModel) => {
     const context = vm.createContext({
@@ -147,8 +147,8 @@ test("home shows Qwen as one engine at its current or last size, OpenAI, the eng
       label: context.homeEngineLabel(options[1]),
     }));
   };
-  assert.deepEqual(run("local-qwen", ""), { shown: ["local-qwen", "openai"], more: ["groq", "local-nemotron"], label: "home.engineLocalQwen 1.7B" });
-  assert.deepEqual(run("local-qwen-large", "large").shown, ["local-qwen-large", "openai"]);
-  assert.deepEqual(run("openai", "large").shown, ["local-qwen-large", "openai"], "returning to Qwen goes back to the size used last");
-  assert.deepEqual(run("groq", ""), { shown: ["local-qwen", "openai", "groq"], more: ["local-nemotron"], label: "home.engineLocalQwen 1.7B" });
+  assert.deepEqual(run("local-qwen", ""), { shown: ["local-qwen", "openrouter"], more: ["openai", "local-nemotron"], label: "home.engineLocalQwen 1.7B" });
+  assert.deepEqual(run("local-qwen-large", "large").shown, ["local-qwen-large", "openrouter"]);
+  assert.deepEqual(run("openrouter", "large").shown, ["local-qwen-large", "openrouter"], "returning to Qwen goes back to the size used last");
+  assert.deepEqual(run("openai", ""), { shown: ["local-qwen", "openrouter", "openai"], more: ["local-nemotron"], label: "home.engineLocalQwen 1.7B" });
 });

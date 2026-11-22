@@ -12,7 +12,7 @@ const DEBUG_MICROPHONE_CLEANUP = false;
 // Mirror of commands.rs perform_transcription_request model selection, so the
 // badge shows the model that will ACTUALLY run (incl. the empty-model default).
 // Keep in sync with the Rust side.
-const RECORD_DEFAULT_MODEL = { openai: "gpt-transcribe", groq: "whisper-large-v3-turbo" };
+const RECORD_DEFAULT_MODEL = { openai: "gpt-transcribe", openrouter: "qwen/qwen3-asr-1.7b" };
 const QWEN_LOCAL_MODEL_ID = "qwen3-asr-0.6b-q8_0";
 const QWEN_LARGE_LOCAL_MODEL_ID = "qwen3-asr-1.7b-q8_0";
 const NEMOTRON_LOCAL_MODEL_ID = "nemotron-3.5-asr-streaming-0.6b-q8_0";
@@ -52,6 +52,9 @@ const MODEL_LABEL = {
   "gpt-4o-transcribe": "OpenAI GPT-4o",
   "gpt-4o-mini-transcribe": "OpenAI GPT-4o mini",
   "whisper-1": "OpenAI Whisper",
+  "qwen/qwen3-asr-1.7b": "Qwen3-ASR 1.7B (cloud)",
+  "microsoft/mai-transcribe-2": "MAI-Transcribe-2",
+  // Groq, removed 2026-11; kept so old history rows still render a name.
   "whisper-large-v3": "Groq Whisper v3",
   "whisper-large-v3-turbo": "Groq Whisper v3 Turbo",
   [QWEN_LOCAL_MODEL_ID]: "Qwen3 · Local",
@@ -696,7 +699,7 @@ class VoiceInputPrompt {
         : this.currentModel === QWEN_LARGE_LOCAL_MODEL_ID ? QWEN_LARGE_LOCAL_MODEL_ID : QWEN_LOCAL_MODEL_ID;
       return MODEL_LABEL[model];
     }
-    const provider = this.currentProvider === "groq" ? "groq" : "openai";
+    const provider = this.currentProvider === "openrouter" ? "openrouter" : "openai";
     const model = String(this.currentModel || "").trim()
       ? this.currentModel
       : RECORD_DEFAULT_MODEL[provider];
@@ -3298,6 +3301,9 @@ class VoiceInputPrompt {
         (recordingSession.provider || this.currentProvider) === "local" &&
         !useNemotronLive &&
         !useChunkedLocal;
+      // OpenRouter's MAI model rejects m4a and webm (measured 2026-11-23), so
+      // OpenRouter gets WAV like the local engine does.
+      const needsWav = useLocalWav || (recordingSession.provider || this.currentProvider) === "openrouter";
       if (useLocalWav) {
         // Keep the full local pipeline single-flight, not just the stateful VAD
         // call. Waiting sessions retain only compressed MediaRecorder chunks;
@@ -3352,7 +3358,7 @@ class VoiceInputPrompt {
         try {
           if (window.TypeAloudVadGate) {
             const verdict = await this.waitForSessionStage(recordingSession, "resample",
-              () => window.TypeAloudVadGate.analyze(audioBlob, { forceWav: useLocalWav }), AUDIO_STAGE_TIMEOUT_MS);
+              () => window.TypeAloudVadGate.analyze(audioBlob, { forceWav: needsWav }), AUDIO_STAGE_TIMEOUT_MS);
             if (!verdict.speech) {
               this.removePendingInsertion(sessionId);
               if (allowUi()) {
@@ -3376,7 +3382,7 @@ class VoiceInputPrompt {
           if (vadError?.name === "TranscriptionStageTimeoutError") throw vadError;
           console.warn("VAD gate failed; proceeding to transcription:", vadError);
         }
-        if (useLocalWav && !uploadBuffer) {
+        if (needsWav && !uploadBuffer) {
           try {
             uploadBuffer = await this.waitForSessionStage(recordingSession, "resample",
               () => window.TypeAloudVadGate.encodeFullWav(audioBlob), AUDIO_STAGE_TIMEOUT_MS);

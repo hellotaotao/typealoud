@@ -9,16 +9,18 @@ export function onboardingEngineLayout(localTier, nemotronSupported) {
   // Qwen 1.7B is a size inside the Qwen engine, offered from Settings once the
   // machine has shown it is fast enough; first-run only chooses local or cloud.
   const small = { value: "local-qwen", recommended: true };
-  const openai = { value: "openai" };
-  const more = [{ value: "groq" }, ...(nemotronSupported ? [{ value: "local-nemotron" }] : [])];
+  // OpenRouter is the main cloud choice: cheaper than OpenAI, and its MAI model
+  // was more accurate in the 2026-11 comparison (docs/cloud-transcription.md).
+  const cloud = { value: "openrouter" };
+  const more = [{ value: "openai" }, ...(nemotronSupported ? [{ value: "local-nemotron" }] : [])];
   if (localTier === "cloud-default") {
-    return { main: [{ ...openai, note: "cloudDefault" }, { ...small, note: "localSlow" }], more };
+    return { main: [{ ...cloud, note: "cloudDefault" }, { ...small, note: "localSlow" }], more };
   }
-  return { main: [small, openai], more };
+  return { main: [small, cloud], more };
 }
 
 export function onboardingEngineState(settings, statuses) {
-  const valid = ["local", "openai", "groq"].includes(settings?.provider);
+  const valid = ["local", "openai", "openrouter"].includes(settings?.provider);
   const ready = valid && settings.engineReady === true;
   const downloading = settings?.provider === "local" && statuses[settings.model]?.state === "downloading";
   return { selected: ready || downloading, ready };

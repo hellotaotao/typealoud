@@ -95,7 +95,7 @@ Secrets, AI release notes, verification, rollback and the localhost updater e2e 
 TypeAloud is a Tauri 2 voice-input app: a **Rust backend** (`src-tauri/src/`) hosting a **web
 frontend** (`src/views/`). It runs in the system tray with a global hold-to-record hotkey,
 transcribes locally by default (Qwen3-ASR through llama.cpp, or Nemotron) or through an optional
-cloud provider (Groq/OpenAI), and inserts the text into the focused app.
+cloud provider (OpenRouter/OpenAI), and inserts the text into the focused app.
 
 ### Rust backend (`src-tauri/src/`)
 
@@ -290,7 +290,7 @@ and its prompt and model parameters are fixed on the server; keep both true when
 
 ### Engine selection and onboarding invariants
 
-- Dictation requests use the recording-start `session-provider` (`local`, `groq`, or `openai`),
+- Dictation requests use the recording-start `session-provider` (`local`, `openrouter`, or `openai`),
   including chunks and automatic retries. Missing or unknown providers are rejected; never infer
   a cloud destination from the latest settings. Explicit History retranscription still uses the
   current configuration.
@@ -298,12 +298,19 @@ and its prompt and model parameters are fixed on the server; keep both true when
   readiness independently from provider/model intent. Download completion does not switch engines,
   with one exception: a download requested with `switchWhenReady` (Settings' "Download 1.7B" while
   Qwen is in use) switches to that model only if the engine is still the one in use at the request.
-- Qwen is one engine with two sizes. Home and Settings show Qwen and OpenAI; Groq and Nemotron sit
-  behind "More" unless one is in use. `qwenModel` (config `qwen_model`) remembers the last Qwen size,
+- Qwen is one engine with two sizes. Home and Settings show Qwen and OpenRouter; OpenAI and Nemotron
+  sit behind "More" unless one is in use. `qwenModel` (config `qwen_model`) remembers the last Qwen size,
   so returning to Qwen restores it. The 1.7B suggestion comes from this machine's measured 0.6B
   decode speed (`local_speed.rs`, `get_local_speed`), never from the chip name.
+- OpenRouter (`openrouter`) replaced Groq on 2026-11-23. It offers `qwen/qwen3-asr-1.7b` (default)
+  and `microsoft/mai-transcribe-2` (`settings::OPENROUTER_MODELS`), chosen in the comparison in
+  `docs/cloud-transcription.md`. Requests are JSON with base64 WAV (MAI rejects m4a and webm, so the
+  recording window sends WAV) and no dictionary prompt; MAI always gets
+  `provider.options.azure.profanityFilterMode: "None"`, since masking changes what the user said.
+  The legacy `api_key` mirror is never sent to OpenRouter. A saved `groq` config is moved to
+  OpenRouter on read with its Groq key dropped (`migrate_removed_providers`).
 - New-install defaults come from `settings::fresh_config_for` and cached hardware tiers, only when
-  the config file is absent. Do not change `AppConfig::default` or serde defaults to implement this
+  the config file is absent. Weak machines (`CloudDefault`) start on OpenRouter. Do not change `AppConfig::default` or serde defaults to implement this
   policy; existing installations must retain their selected engine.
 
 ### IPC contract

@@ -112,7 +112,7 @@ test("web capture keeps its provider across AudioContext resume", async () => {
   const h = harness({ resume: () => resume.promise });
   const start = h.prompt.startRecording();
   await settle();
-  h.prompt.currentProvider = "groq";
+  h.prompt.currentProvider = "openrouter";
   resume.resolve();
   await start;
   assert.equal(h.prompt.isRecording, true);

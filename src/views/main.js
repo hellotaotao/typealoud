@@ -636,8 +636,8 @@ const ENGINE_OPTIONS = [
     recommended: true,
   },
   { value: "local-qwen-large", labelKey: "home.engineLocalQwenLarge", model: QWEN_LARGE_LOCAL_MODEL },
+  { value: "openrouter", label: "OpenRouter" },
   { value: "openai", label: "OpenAI" },
-  { value: "groq", label: "Groq" },
   {
     value: "local-nemotron",
     labelKey: "home.engineLocalNemotron",
@@ -646,7 +646,7 @@ const ENGINE_OPTIONS = [
 ];
 
 const ENGINE_CAPTION_KEY = {
-  groq: "home.engineCaptionGroq",
+  openrouter: "home.engineCaptionOpenRouter",
   openai: "home.engineCaptionOpenai",
   "local-qwen": "home.engineCaptionLocalQwen",
   "local-qwen-large": "home.engineCaptionLocalQwenLarge",
@@ -678,7 +678,7 @@ function localEngineSelected(model) {
 
 function selectedEngineValue() {
   if (cachedSettings?.provider !== "local") {
-    return cachedSettings?.provider || "groq";
+    return cachedSettings?.provider || "openrouter";
   }
   if (cachedSettings.model === QWEN_LARGE_LOCAL_MODEL) return "local-qwen-large";
   return normalizeLocalModel(cachedSettings.model) === NEMOTRON_LOCAL_MODEL
@@ -834,7 +834,7 @@ async function refreshEngineAvailability() {
   // Retain booleans only, never credentials, in the Home availability cache.
   const cloud = ipc.invoke("get-api-keys").then(keys => ({
     openai: !!String(keys?.apiKeyOpenAI || "").trim(),
-    groq: !!String(keys?.apiKeyGroq || "").trim(),
+    openrouter: !!String(keys?.apiKeyOpenRouter || "").trim(),
   })).catch(() => null);
   await Promise.all(options.map(async option => {
     let status;
@@ -889,10 +889,10 @@ function homeQwenValue() {
   return cachedSettings?.qwenModel === QWEN_LARGE_LOCAL_MODEL ? "local-qwen-large" : "local-qwen";
 }
 
-// Qwen and OpenAI, plus the engine in use when it lives under "More".
+// Qwen and OpenRouter, plus the engine in use when it lives under "More".
 function homeEngineOptions() {
   const selected = selectedEngineValue();
-  const values = [homeQwenValue(), "openai"];
+  const values = [homeQwenValue(), "openrouter"];
   if (!values.includes(selected)) values.push(selected);
   const available = availableEngineOptions();
   return values.map((value) => available.find((option) => option.value === value)).filter(Boolean);
@@ -1090,7 +1090,7 @@ async function selectEngine(providerChoice) {
         return (await ipc.invoke("get-local-model-status", option.model))?.state === "ready";
       }
       const keys = await ipc.invoke("get-api-keys");
-      return !!String(providerChoice === "openai" ? keys.apiKeyOpenAI || "" : keys.apiKeyGroq || "").trim();
+      return !!String(providerChoice === "openai" ? keys.apiKeyOpenAI || "" : keys.apiKeyOpenRouter || "").trim();
     });
     if (!ready) {
       await refreshReadiness();
@@ -1238,8 +1238,8 @@ function showOnboarding(step = "welcome") {
   obCurrent = obSteps().includes(step) ? step : "welcome";
   obKeyStatus = "idle";
   obKeyError = "";
-  obKeyProvider = cachedSettings?.provider === "groq" ? "groq" : "openai";
-  obMoreExpanded = cachedSettings?.provider === "groq" ||
+  obKeyProvider = cachedSettings?.provider === "openai" ? "openai" : "openrouter";
+  obMoreExpanded = cachedSettings?.provider === "openai" ||
     (cachedSettings?.provider === "local" && cachedSettings.model === NEMOTRON_LOCAL_MODEL);
   obPaused = false;
   obPracticeActivity = false;
@@ -1619,7 +1619,7 @@ function obEngineCard(entry) {
   card.className = option.model ? "ob-local-card" : "ob-provider";
   card.classList.toggle("prominent", !!entry.prominent || !!entry.recommended);
   card.setAttribute("data-ob-engine", entry.value);
-  const ids = { "local-qwen": "obLocalQwenCard", "local-qwen-large": "obLocalQwenLargeCard", "local-nemotron": "obLocalNemotronCard", openai: "obProviderOpenai", groq: "obProviderGroq" };
+  const ids = { "local-qwen": "obLocalQwenCard", "local-qwen-large": "obLocalQwenLargeCard", "local-nemotron": "obLocalNemotronCard", openai: "obProviderOpenai", openrouter: "obProviderOpenRouter" };
   card.id = ids[entry.value];
   if (option.model) card.setAttribute("data-local-model", option.model);
   else card.setAttribute("data-provider", entry.value);
@@ -2082,7 +2082,7 @@ function renderObKey() {
     return;
   }
   if (!obSelectionPending && obKeyStatus !== "saving" &&
-      ["openai", "groq"].includes(cachedSettings?.provider) && obKeyProvider !== cachedSettings.provider) {
+      ["openai", "openrouter"].includes(cachedSettings?.provider) && obKeyProvider !== cachedSettings.provider) {
     obKeyProvider = cachedSettings.provider;
     obKeyStatus = "idle";
     obKeyError = "";
@@ -2101,14 +2101,14 @@ function renderObKey() {
   const cloud = document.getElementById("obCloudSection");
   if (cloud) cloud.hidden = cachedSettings?.provider === "local" && !obSelectionPending;
   const label = document.getElementById("obKeyLabel");
-  if (label) label.textContent = t("onboarding.key.keyLabel", { provider: obKeyProvider === "groq" ? "Groq" : "OpenAI" });
+  if (label) label.textContent = t("onboarding.key.keyLabel", { provider: obKeyProvider === "openrouter" ? "OpenRouter" : "OpenAI" });
   const notice = document.getElementById("obCloudNotice");
-  if (notice) notice.textContent = t("onboarding.key.cloudNotice", { provider: obKeyProvider === "groq" ? "Groq" : "OpenAI" });
+  if (notice) notice.textContent = t("onboarding.key.cloudNotice", { provider: obKeyProvider === "openrouter" ? "OpenRouter" : "OpenAI" });
   const input = document.getElementById("obKeyInput");
   if (input) {
     input.placeholder = t(
-      obKeyProvider === "groq"
-        ? "onboarding.key.placeholderGroq"
+      obKeyProvider === "openrouter"
+        ? "onboarding.key.placeholderOpenRouter"
         : "onboarding.key.placeholderOpenai"
     );
   }
@@ -2127,7 +2127,7 @@ function renderObKey() {
     } else {
       help.className = "ob-key-help";
       help.textContent = t(
-        obKeyProvider === "groq" ? "onboarding.key.getKeyGroq" : "onboarding.key.getKeyOpenai"
+        obKeyProvider === "openrouter" ? "onboarding.key.getKeyOpenRouter" : "onboarding.key.getKeyOpenai"
       );
     }
   }
