@@ -10,7 +10,7 @@ const translate = (key, vars) => (key === "shortcut.right" ? `Right ${vars.key}`
 
 test("each platform leads with its new-install default", () => {
   // Must match settings.rs new_install_shortcut.
-  assert.equal(shortcuts.options("macos")[0].value, "RightAlt");
+  assert.equal(shortcuts.options("macos")[0].value, "RightMeta");
   assert.equal(shortcuts.options("windows")[0].value, "Ctrl+Meta");
   assert.equal(shortcuts.options("linux")[0].value, "Ctrl+Shift");
   for (const os of ["macos", "windows", "linux"]) {

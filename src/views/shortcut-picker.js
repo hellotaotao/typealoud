@@ -6,8 +6,8 @@
   // new_install_shortcut). `more` entries sit behind "More combinations".
   const OPTIONS = {
     macos: [
-      { value: "RightAlt", recommended: true, note: "rightAlt" },
-      { value: "RightMeta", note: "rightMeta" },
+      { value: "RightMeta", recommended: true, note: "rightMeta" },
+      { value: "RightAlt", note: "rightAlt" },
       { value: "Ctrl+Shift", note: "ctrlShift" },
       { value: "Ctrl+Alt", more: true },
       { value: "Ctrl+Meta", more: true },

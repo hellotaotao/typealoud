@@ -161,7 +161,8 @@ cloud provider (Groq/OpenAI), and inserts the text into the focused app.
 - `hotkey.rs` — global hold-to-record: a CGEventTap on macOS (only when Accessibility is trusted),
   `rdev::listen` elsewhere. Parses the modifier-only record shortcut: two or more modifiers
   (`Ctrl+Meta`) or one right-hand Ctrl/Alt/Meta (`RightAlt`); left and right keys are told apart
-  (macOS through the device-dependent flag bits). New installs get `RightAlt` on macOS, `Ctrl+Meta`
+  (macOS through the device-dependent flag bits). New installs get `RightMeta` on macOS (not `RightAlt`: the Claude
+  desktop app takes a double tap of Option for its quick entry), `Ctrl+Meta`
   on Windows and `Ctrl+Shift` on Linux (`settings::new_install_shortcut`); saved configs keep theirs.
   On macOS and Windows an install still on one of the two original shortcuts (`Ctrl+Shift`,
   `Ctrl+Alt`) is shown the picker once in the main window (`settings::shortcut_prompt_due`);

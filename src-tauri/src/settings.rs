@@ -403,14 +403,17 @@ fn shortcut_prompt_due_on(platform_has_new_keys: bool, config: &AppConfig) -> bo
   ORIGINAL_SHORTCUTS.iter().any(|original| canonical(original) == current)
 }
 
-/// The record shortcut a new install starts with. macOS: the right Option key,
-/// which does nothing on its own and leaves the left hand free. Windows: Ctrl+Win,
+/// The record shortcut a new install starts with. macOS: the right Command key,
+/// which does nothing on its own and leaves the left hand free. Not the right
+/// Option key: the Claude desktop app opens its quick entry on a double tap of
+/// Option by default, which takes over the double tap that starts hands-free
+/// recording, and Option also types special characters. Windows: Ctrl+Win,
 /// since Ctrl+Shift cycles input methods there, a lone Alt moves focus to the
 /// menu bar and the right Ctrl is missing on laptops with a Copilot key. Linux
 /// keeps the original Ctrl+Shift. Existing installs keep what they saved.
 pub fn new_install_shortcut() -> &'static str {
   if cfg!(target_os = "macos") {
-    "RightAlt"
+    "RightMeta"
   } else if cfg!(target_os = "windows") {
     "Ctrl+Meta"
   } else {

@@ -120,8 +120,8 @@
         lessCombos: "Fewer combinations",
         usual: "Your key so far",
         notes: {
-          rightAlt: "One hand. On its own it does nothing else in macOS.",
-          rightMeta: "One hand. ⌘ starts many shortcuts, so ⌘C and the like briefly open the recording window.",
+          rightAlt: "One hand. The Claude desktop app opens its quick entry on a double tap of Option by default, which takes over double-tap hands-free recording.",
+          rightMeta: "One hand. On its own it does nothing in macOS; ⌘C and the like may briefly flash the recording window.",
           ctrlShift: "Two keys, rarely clashes with other shortcuts.",
           ctrlWin: "Two keys every keyboard has.",
           rightCtrl: "One hand. Some laptops have a Copilot key instead of a right Ctrl.",
@@ -802,8 +802,8 @@
         lessCombos: "收起",
         usual: "一直在用",
         notes: {
-          rightAlt: "一只手就能按，单独按下时 macOS 没有别的动作。",
-          rightMeta: "一只手就能按。⌘ 组合键用得多，按 ⌘C 这类组合时录音窗会闪一下。",
+          rightAlt: "一只手就能按。Claude 桌面版默认用双击 Option 打开快捷对话，会抢走双击进入免按住录音。",
+          rightMeta: "一只手就能按，单独按下时 macOS 没有别的动作；按 ⌘C 这类组合键时录音窗可能闪一下。",
           ctrlShift: "两个键一起按，很少和别的快捷键冲突。",
           ctrlWin: "每把键盘都有这两个键。",
           rightCtrl: "一只手就能按。有些笔记本的右 Ctrl 换成了 Copilot 键。",
