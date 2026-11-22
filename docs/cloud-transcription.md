@@ -75,3 +75,31 @@ forwards `provider.options.azure.*` as-is (ElevenLabs options pass the same way)
 calls: masking or changing words is not acceptable, so MAI needs `profanityFilterMode: "None"`;
 sound tags don't belong in dictated text, so Scribe needs `tag_audio_events: false`; hyphens at
 repetitions and self-corrections are fine and stay. The whole run cost about $0.13.
+
+### Second run: other speakers, with reference transcripts (2026-11-23)
+
+The first run had one voice and no ground truth, so the three front-runners (Qwen 1.7B, MAI with
+profanity filtering off, Scribe with sound tags off) went through 150 public clips that come with
+human transcripts: 70 from ASCEND (spontaneous Hong Kong conversation, 23 speakers across its
+splits; 50 clips that switch between Chinese and English, 20 Chinese-only) and 80 read sentences
+from FLEURS (50 Mandarin, 30 English). The score is the error rate counting each Chinese character
+and each English word as one token, after turning numerals into digits and traditional characters
+into simplified ones, so number style and script don't count; lower is better.
+
+| Set (clips) | Qwen 1.7B | MAI-2 | Scribe v2 |
+|---|---|---|---|
+| ASCEND mixed Chinese-English (50) | 11.4 % | 7.7 % | 5.9 % |
+| ASCEND Chinese only (20) | 7.5 % | 8.3 % | 9.6 % |
+| FLEURS Mandarin, read (50) | 2.0 % | 1.8 % | 2.3 % |
+| FLEURS English, read (30) | 3.2 % | 2.7 % | 3.5 % |
+| All 150 | 5.5 % | 4.4 % | 4.3 % |
+| Median latency | 1.4 s | 1.0 s | 1.3 s |
+
+Qwen's gap on mixed speech is mostly one failure mode: when a sentence starts in English it
+sometimes translates the whole sentence into English ("so you know呃在赛马会呢…精算师…" came back
+as "So you know, uh, in the horse racing, actually, they also hire a lot of actuaries…"), which
+costs 40 tokens in one clip. Scribe's losses on Chinese-only clips are fillers: it writes 嗯 as 呃,
+adds "……"/"——", and twice dropped or swapped a word ("之类的" → "这类"). On read speech all three
+are within half a point. None returned traditional characters. All 150 requests succeeded, at about
+$0.10 in total.
+
