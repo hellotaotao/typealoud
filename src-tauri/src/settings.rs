@@ -57,6 +57,9 @@ pub const OPENROUTER_PROVIDER: &str = "openrouter";
 /// from the 2026-11 comparison in docs/cloud-transcription.md.
 pub const OPENROUTER_MODELS: &[&str] = &["qwen/qwen3-asr-1.7b", "microsoft/mai-transcribe-2"];
 pub const OPENROUTER_DEFAULT_MODEL: &str = "qwen/qwen3-asr-1.7b";
+/// The one OpenAI model offered since 2026-09. Older picks (whisper-1, the
+/// gpt-4o transcribe models) are moved to it: Whisper is no longer offered.
+pub const OPENAI_MODEL: &str = "gpt-transcribe";
 
 fn default_provider() -> String {
   "openai".into()
@@ -456,7 +459,8 @@ fn read_config_from_path_with_tier(path: &Path, tier: crate::hardware::LocalTier
 /// Groq moves to OpenRouter's default model; its Groq key cannot be used there,
 /// so the engine shows "needs a key" until one is entered. The legacy `api_key`
 /// mirror held the Groq key and is cleared so it can never reach another
-/// provider. The `apiKeyGroq` field itself is no longer read.
+/// provider. The `apiKeyGroq` field itself is no longer read. An OpenAI install
+/// on a retired model (whisper-1, gpt-4o-transcribe) moves to `OPENAI_MODEL`.
 fn migrate_removed_providers(config: &mut AppConfig) {
   if config.provider == "groq" {
     config.provider = OPENROUTER_PROVIDER.into();
@@ -466,6 +470,8 @@ fn migrate_removed_providers(config: &mut AppConfig) {
     && !OPENROUTER_MODELS.contains(&config.model.as_str())
   {
     config.model = OPENROUTER_DEFAULT_MODEL.into();
+  } else if config.provider == "openai" && config.model != OPENAI_MODEL {
+    config.model = OPENAI_MODEL.into();
   }
 }
 
@@ -993,6 +999,21 @@ mod tests {
       serde_json::from_str(r#"{"provider":"openai","model":"gpt-transcribe"}"#).unwrap();
     migrate_removed_providers(&mut other);
     assert_eq!(other.model, "gpt-transcribe");
+  }
+
+  #[test]
+  fn openai_installs_on_whisper_or_gpt_4o_move_to_gpt_transcribe() {
+    for old in ["whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe", ""] {
+      let mut config: AppConfig =
+        serde_json::from_value(serde_json::json!({ "provider": "openai", "model": old })).unwrap();
+      migrate_removed_providers(&mut config);
+      assert_eq!(config.model, OPENAI_MODEL, "{old}");
+    }
+    // A local install keeps its model.
+    let mut local: AppConfig =
+      serde_json::from_str(r#"{"provider":"local","model":"qwen3-asr-0.6b-q8_0"}"#).unwrap();
+    migrate_removed_providers(&mut local);
+    assert_eq!(local.model, "qwen3-asr-0.6b-q8_0");
   }
 
   #[test]

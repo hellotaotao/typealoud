@@ -310,7 +310,9 @@ and its prompt and model parameters are fixed on the server; keep both true when
   rejects `keyterms`). MAI always gets `provider.options.azure.profanityFilterMode: "None"`, since
   masking changes what the user said. A newly added model needs its own check of both.
   The legacy `api_key` mirror is never sent to OpenRouter. A saved `groq` config is moved to
-  OpenRouter on read with its Groq key dropped (`migrate_removed_providers`).
+  OpenRouter on read with its Groq key dropped (`migrate_removed_providers`). Whisper is no longer
+  offered anywhere: OpenAI sends only `gpt-transcribe` (`settings::OPENAI_MODEL`), and a saved
+  `whisper-1` or gpt-4o model is moved to it on read.
 - New-install defaults come from `settings::fresh_config_for` and cached hardware tiers, only when
   the config file is absent. Weak machines (`CloudDefault`) start on OpenRouter. Do not change `AppConfig::default` or serde defaults to implement this
   policy; existing installations must retain their selected engine.

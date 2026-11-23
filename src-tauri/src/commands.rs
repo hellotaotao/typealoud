@@ -760,7 +760,7 @@ fn default_model_for(provider: &str) -> &'static str {
   match provider {
     settings::OPENROUTER_PROVIDER => settings::OPENROUTER_DEFAULT_MODEL,
     crate::local_asr::LOCAL_PROVIDER => crate::local_asr::QWEN_MODEL_ID,
-    _ => "gpt-transcribe",
+    _ => settings::OPENAI_MODEL,
   }
 }
 
@@ -2602,11 +2602,8 @@ async fn perform_transcription_request(
     return perform_openrouter_request(client, config, api_key, audio_buffer, &mime_type).await;
   }
   let endpoint = "https://api.openai.com/v1/audio/transcriptions";
-  let model = if config.model.trim().is_empty() {
-    "gpt-transcribe".to_string()
-  } else {
-    config.model.clone()
-  };
+  // Only the offered model is sent, even from a hand-edited config.
+  let model = settings::OPENAI_MODEL.to_string();
 
   let extension = if mime_type.contains("mp4") {
     "m4a"
@@ -3158,9 +3155,9 @@ mod tests {
   #[test]
   fn switch_provider_same_provider_keeps_custom_model() {
     let mut config = AppConfig::default();
-    config.model = "whisper-1".into();
+    config.model = "custom-model".into();
     switch_provider(&mut config, "openai");
-    assert_eq!(config.model, "whisper-1");
+    assert_eq!(config.model, "custom-model");
   }
 
   #[test]
