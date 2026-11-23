@@ -125,7 +125,7 @@ cloud provider (OpenRouter/OpenAI), and inserts the text into the focused app.
     - `RETRY_*` codes (`retry_error.rs`) are persisted in users' History: keep old translations when
       retiring a code, and migrate stored rows before renaming or reusing one.
 - `local_asr.rs` — local Qwen3-ASR (0.6B default, 1.7B optional) through upstream llama.cpp
-  `b9960`'s `llama-mtmd-cli`: assets and downloader, resident worker, stdout parser. **Invariants**
+  `b12651`'s `llama-mtmd-cli`: assets and downloader, resident worker, stdout parser. **Invariants**
   (reasons and measurements: `docs/local-asr.md`):
   - Always pass an explicit `-c` sized by `ctx_size_for_wav` (otherwise ~7 GiB of KV cache) and
     `-p "a"` (an empty prompt hangs). Input is 16 kHz mono PCM16 WAV only.

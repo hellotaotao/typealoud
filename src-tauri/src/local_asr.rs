@@ -15,7 +15,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::Emitter;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::{Child, ChildStdin, ChildStdout};
+use tokio::io::AsyncBufReadExt;
+use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -36,7 +37,7 @@ pub fn normalize_local_model_id(model: &str) -> &'static str {
 /// stdout format, all sha256s, and a real-dictation regression.
 // Use upstream's official runtime on every platform. Worker reuse is bounded
 // by one recording session and guarded by contamination detection below.
-pub const LLAMA_BUILD: &str = "b9960";
+pub const LLAMA_BUILD: &str = "b12651";
 
 pub struct Asset {
   /// Final location under local_asr_dir(); doubles as the download's .part
@@ -122,12 +123,12 @@ fn qwen_total_bytes(model: &str) -> u64 {
 static MAC_ZIP: Asset = Asset {
   rel_path: "llama-macos-arm64.tar.gz",
   urls: &[
-    "https://github.com/ggml-org/llama.cpp/releases/download/b9960/llama-b9960-bin-macos-arm64.tar.gz",
-    "https://typealoud.app/download/runtime/llama.cpp/b9960/llama-b9960-bin-macos-arm64.tar.gz",
+    "https://github.com/ggml-org/llama.cpp/releases/download/b12651/llama-b12651-bin-macos-arm64.tar.gz",
+    "https://typealoud.app/download/runtime/llama.cpp/b12651/llama-b12651-bin-macos-arm64.tar.gz",
   ],
   bundled: None,
-  size: 10_734_569,
-  sha256: "7a8c6b6ae3395e15b5cc330ed2938cc0aa4510905db1189658fd022035734b48",
+  size: 16_644_358,
+  sha256: "264fd872de61679c45ad57e1e21c2a2a54e29b35734ecf3d50f24166447ab8d2",
 };
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub fn llama_zip_asset() -> &'static Asset {
@@ -141,12 +142,12 @@ pub fn llama_zip_asset() -> &'static Asset {
 static MAC_ZIP: Asset = Asset {
   rel_path: "llama-macos-x64.tar.gz",
   urls: &[
-    "https://github.com/ggml-org/llama.cpp/releases/download/b9960/llama-b9960-bin-macos-x64.tar.gz",
-    "https://typealoud.app/download/runtime/llama.cpp/b9960/llama-b9960-bin-macos-x64.tar.gz",
+    "https://github.com/ggml-org/llama.cpp/releases/download/b12651/llama-b12651-bin-macos-x64.tar.gz",
+    "https://typealoud.app/download/runtime/llama.cpp/b12651/llama-b12651-bin-macos-x64.tar.gz",
   ],
   bundled: None,
-  size: 11_007_527,
-  sha256: "d42000ae003fd61d7db50997af0e80f421524e30b534856c66573d064a478c1d",
+  size: 12_434_934,
+  sha256: "34c19771545479a783d3b68c446383ab703033890c052d3ff0b860a5c9f59e56",
 };
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 pub fn llama_zip_asset() -> &'static Asset {
@@ -157,12 +158,12 @@ pub fn llama_zip_asset() -> &'static Asset {
 static WIN_ZIP: Asset = Asset {
   rel_path: "llama-win-x64.zip",
   urls: &[
-    "https://github.com/ggml-org/llama.cpp/releases/download/b9960/llama-b9960-bin-win-cpu-x64.zip",
-    "https://typealoud.app/download/runtime/llama.cpp/b9960/llama-b9960-bin-win-cpu-x64.zip",
+    "https://github.com/ggml-org/llama.cpp/releases/download/b12651/llama-b12651-bin-win-cpu-x64.zip",
+    "https://typealoud.app/download/runtime/llama.cpp/b12651/llama-b12651-bin-win-cpu-x64.zip",
   ],
   bundled: None,
-  size: 18_209_357,
-  sha256: "795333e29cedf9f9ef9ae91324bfa423e338d39d75cc63a8dd76d1686c32ced6",
+  size: 25_096_571,
+  sha256: "b2d794fa7587aba29f654d717ff9b73e31caeabf50a7766692903008bbe0855d",
 };
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub fn llama_zip_asset() -> &'static Asset {
@@ -173,12 +174,12 @@ pub fn llama_zip_asset() -> &'static Asset {
 static LINUX_ZIP: Asset = Asset {
   rel_path: "llama-linux-x64.tar.gz",
   urls: &[
-    "https://github.com/ggml-org/llama.cpp/releases/download/b9960/llama-b9960-bin-ubuntu-x64.tar.gz",
-    "https://typealoud.app/download/runtime/llama.cpp/b9960/llama-b9960-bin-ubuntu-x64.tar.gz",
+    "https://github.com/ggml-org/llama.cpp/releases/download/b12651/llama-b12651-bin-ubuntu-x64.tar.gz",
+    "https://typealoud.app/download/runtime/llama.cpp/b12651/llama-b12651-bin-ubuntu-x64.tar.gz",
   ],
   bundled: None,
-  size: 15_819_482,
-  sha256: "542732e344420ff904c1d72acfeef6341f509232c5d131809421943235a818a2",
+  size: 23_297_838,
+  sha256: "17b242259181d5b1b1f7719aba27929700a8b0dab39bfaef1b971a992b397b38",
 };
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub fn llama_zip_asset() -> &'static Asset {
@@ -203,12 +204,12 @@ pub fn llama_zip_asset() -> &'static Asset {
 static GPU_ZIP: Option<Asset> = Some(Asset {
   rel_path: "llama-win-vulkan-x64.zip",
   urls: &[
-    "https://github.com/ggml-org/llama.cpp/releases/download/b9960/llama-b9960-bin-win-vulkan-x64.zip",
-    "https://typealoud.app/download/runtime/llama.cpp/b9960/llama-b9960-bin-win-vulkan-x64.zip",
+    "https://github.com/ggml-org/llama.cpp/releases/download/b12651/llama-b12651-bin-win-vulkan-x64.zip",
+    "https://typealoud.app/download/runtime/llama.cpp/b12651/llama-b12651-bin-win-vulkan-x64.zip",
   ],
   bundled: None,
-  size: 32_896_693,
-  sha256: "712ccd52eb6d2a77cf79e44d1645f6860990ea9295ca06e2d9609ee741b62616",
+  size: 38_939_211,
+  sha256: "e58fa9a137d8046c69334005ad6fb3e904ddc7e56f2a61ad1b844335826ef3f4",
 });
 #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
 static GPU_ZIP: Option<Asset> = None;
@@ -272,8 +273,13 @@ fn cleanup_legacy_assets_at(app_data: &Path) -> Result<()> {
   // behind, so clear whichever one is not current. macOS arm64 and, for v1.10.x,
   // Windows ran the patched build; everything now runs upstream b9960 again, and
   // an upgrade that switches back would otherwise strand ~14 MB per machine.
-  let stale = if LLAMA_BUILD == "b9960" { "b9960-saytype-reset-v1" } else { "b9960" };
-  remove_legacy_dir(&app_data.join("local-asr/bin").join(stale))?;
+  // Builds before the current pin are dead weight too (b9960 crashed a reused
+  // worker on `mtmd.cpp:1655`, see docs/local-asr.md).
+  for stale in ["b9960", "b9960-vulkan", "b9960-saytype-reset-v1"] {
+    if stale != LLAMA_BUILD && stale != format!("{LLAMA_BUILD}-vulkan") {
+      remove_legacy_dir(&app_data.join("local-asr/bin").join(stale))?;
+    }
+  }
 
   // Nemotron ran on a privately built macOS runtime through v1.10.x. It now
   // uses upstream's own release under a new id, so the old extraction is dead
@@ -679,6 +685,58 @@ pub fn gpu_runtime_supported() -> bool {
 
 pub fn gpu_runtime_ready_at(base: &Path) -> bool {
   runtime_is_installed(base, Runtime::Gpu)
+}
+
+/// The engine's own stderr, kept for failure diagnosis. It used to go to
+/// `Stdio::null()`, so a worker that crashed or stopped answering left no trace
+/// of why. Only the latest lines are held and they reach the log only when a
+/// resident worker fails.
+const STDERR_TAIL_LINES: usize = 40;
+const STDERR_LINE_MAX: usize = 200;
+type StderrTail = std::sync::Arc<Mutex<std::collections::VecDeque<String>>>;
+
+fn push_stderr_line(tail: &mut std::collections::VecDeque<String>, raw: &str) {
+  let line = raw.trim_end();
+  // The transcript is stdout. Drop anything carrying the ASR marker anyway:
+  // dictation text stays out of log files.
+  if line.is_empty() || line.contains("<asr_text>") {
+    return;
+  }
+  if tail.len() >= STDERR_TAIL_LINES {
+    tail.pop_front();
+  }
+  tail.push_back(line.chars().take(STDERR_LINE_MAX).collect());
+}
+
+/// Drain the worker's stderr for as long as it lives. Draining is also what
+/// keeps a verbose chat-mode process from blocking on a full pipe.
+fn spawn_stderr_reader(stderr: ChildStderr) -> StderrTail {
+  let tail = StderrTail::default();
+  let sink = tail.clone();
+  tokio::spawn(async move {
+    let mut reader = tokio::io::BufReader::new(stderr);
+    let mut buf = Vec::new();
+    loop {
+      buf.clear();
+      match reader.read_until(b'\n', &mut buf).await {
+        Ok(0) | Err(_) => break,
+        Ok(_) => push_stderr_line(&mut sink.lock().unwrap(), &String::from_utf8_lossy(&buf)),
+      }
+    }
+  });
+  tail
+}
+
+fn log_stderr_tail(context: &str, tail: &StderrTail) {
+  let lines: Vec<String> = tail.lock().unwrap().iter().cloned().collect();
+  if lines.is_empty() {
+    log::warn!("local-asr: {context}: engine stderr tail is empty");
+    return;
+  }
+  log::warn!("local-asr: {context}: last {} engine stderr lines follow", lines.len());
+  for line in lines {
+    log::warn!("local-asr:   stderr| {line}");
+  }
 }
 
 fn disable_gpu_for_process(reason: &str) {
@@ -1159,6 +1217,8 @@ struct ResidentWorker {
   /// decode the previous audio, so it is load-bearing, not a debug aid.
   last_transcript: Option<String>,
   decodes_served: u32,
+  /// Latest engine stderr lines, logged when this worker stalls.
+  stderr_tail: StderrTail,
 }
 
 impl ResidentWorker {
@@ -1181,16 +1241,20 @@ impl ResidentWorker {
       // sequence of `/audio <path>` commands while keeping both models loaded.
       .stdin(Stdio::piped())
       .stdout(Stdio::piped())
-      // Chat-mode stderr is verbose enough to fill a pipe over a long session;
-      // one-shot fallback below retains detailed stderr for error reporting.
-      .stderr(Stdio::null())
+      // Chat-mode stderr is verbose enough to fill a pipe over a long session,
+      // so a reader drains it continuously and keeps only the latest lines.
+      .stderr(Stdio::piped())
       .kill_on_drop(true)
       .spawn()
       .context("failed to start resident llama-mtmd-cli")?;
     let stdin = child.stdin.take().expect("stdin is piped");
     let mut stdout = child.stdout.take().expect("stdout is piped");
-    read_chat_response(&mut stdout, 0, false, |_| {}).await
-      .context("resident llama-mtmd-cli did not reach its initial prompt")?;
+    let stderr_tail = spawn_stderr_reader(child.stderr.take().expect("stderr is piped"));
+    if let Err(error) = read_chat_response(&mut stdout, 0, false, |_| {}).await {
+      tokio::time::sleep(Duration::from_millis(100)).await;
+      log_stderr_tail("worker never reached its initial prompt", &stderr_tail);
+      return Err(error.context("resident llama-mtmd-cli did not reach its initial prompt"));
+    }
     #[cfg(test)]
     RESIDENT_STARTS.fetch_add(1, Ordering::Relaxed);
     Ok(Self {
@@ -1204,6 +1268,7 @@ impl ResidentWorker {
       session_id,
       last_transcript: None,
       decodes_served: 0,
+      stderr_tail,
       epoch: RESIDENT_EPOCH.load(Ordering::Relaxed),
     })
   }
@@ -1873,9 +1938,18 @@ async fn transcribe_wav_inner_for(
         return Ok(text);
       }
       Ok(Err(error)) => {
-        log::warn!("local-asr: resident worker failed, retrying one-shot: {error:#}");
+        // Let the stderr reader drain what the dying process wrote last.
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        log_stderr_tail("resident worker failed", &worker.stderr_tail);
+        log::warn!(
+          "local-asr: resident worker failed, retrying one-shot: runtime={} reused={} elapsed_ms={} {error:#}",
+          worker.runtime.label(),
+          worker_reused,
+          resident_started.elapsed().as_millis()
+        );
       }
       Err(_) => {
+        log_stderr_tail("resident worker hit the attempt deadline", &worker.stderr_tail);
         log::warn!(
           "local-asr: resident worker timed out after {}s, retrying one-shot",
           TRANSCRIBE_TIMEOUT.as_secs()
@@ -3114,6 +3188,25 @@ mod tests {
       .unwrap();
     drop(second);
     assert_eq!(LOCAL_INFERENCE.available_permits(), 1);
+  }
+
+  #[test]
+  fn stderr_tail_keeps_only_the_latest_clipped_engine_lines() {
+    let mut tail = std::collections::VecDeque::new();
+    for i in 0..(STDERR_TAIL_LINES + 5) {
+      push_stderr_line(&mut tail, &format!("line {i}\r\n"));
+    }
+    assert_eq!(tail.len(), STDERR_TAIL_LINES);
+    assert_eq!(tail.front().unwrap(), "line 5");
+    assert_eq!(tail.back().unwrap(), &format!("line {}", STDERR_TAIL_LINES + 4));
+
+    let mut tail = std::collections::VecDeque::new();
+    push_stderr_line(&mut tail, "   \n");
+    push_stderr_line(&mut tail, &"x".repeat(STDERR_LINE_MAX + 50));
+    // Dictation text must never reach the log, even if the engine echoes it.
+    push_stderr_line(&mut tail, "<asr_text>spoken words");
+    assert_eq!(tail.len(), 1);
+    assert_eq!(tail[0].chars().count(), STDERR_LINE_MAX);
   }
 
   #[test]
