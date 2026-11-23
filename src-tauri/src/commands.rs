@@ -2673,12 +2673,21 @@ fn openrouter_audio_format(mime_type: &str) -> &'static str {
   }
 }
 
-/// The JSON body for OpenRouter's speech-to-text endpoint. Per-model provider
-/// options come from the 2026-11 comparison (docs/cloud-transcription.md):
-/// MAI masks profanity unless told not to, which changes what the user said.
-/// No dictionary prompt: Qwen ignores it, as it does locally, and the
-/// replacement rules and term matching still run on the result.
-fn openrouter_request_body(model: &str, language: &str, audio: &[u8], mime_type: &str) -> serde_json::Value {
+/// OpenRouter's limits on `keyterms`: at most 1000 terms of 100 characters.
+const OPENROUTER_MAX_KEYTERMS: usize = 1000;
+const OPENROUTER_MAX_KEYTERM_CHARS: usize = 100;
+
+/// The JSON body for OpenRouter's speech-to-text endpoint. Per-model handling
+/// comes from tests on real dictations (docs/cloud-transcription.md):
+/// - MAI masks profanity unless told not to, which changes what the user said.
+/// - MAI takes the dictionary as `keyterms` (it fixed all five misheard names
+///   in the test, at no extra cost) and ignores `prompt`.
+/// - Qwen ignores `prompt` and rejects `keyterms` with a 400, so it gets no
+///   dictionary, as locally. Replacement rules and term matching still run on
+///   every model's result.
+fn openrouter_request_body(
+  model: &str, language: &str, dictionary: &str, audio: &[u8], mime_type: &str,
+) -> serde_json::Value {
   use base64::Engine as _;
   let mut body = serde_json::json!({
     "model": model,
@@ -2693,6 +2702,14 @@ fn openrouter_request_body(model: &str, language: &str, audio: &[u8], mime_type:
   }
   if model == "microsoft/mai-transcribe-2" {
     body["provider"] = serde_json::json!({ "options": { "azure": { "profanityFilterMode": "None" } } });
+    let keyterms: Vec<&str> = crate::dictionary::terms(dictionary)
+      .into_iter()
+      .filter(|term| term.chars().count() <= OPENROUTER_MAX_KEYTERM_CHARS)
+      .take(OPENROUTER_MAX_KEYTERMS)
+      .collect();
+    if !keyterms.is_empty() {
+      body["keyterms"] = keyterms.into();
+    }
   }
   body
 }
@@ -2713,7 +2730,7 @@ async fn perform_openrouter_request(
     "transcribe: model={model} provider=openrouter language={}",
     config.language
   );
-  let body = openrouter_request_body(model, &config.language, &audio_buffer, mime_type);
+  let body = openrouter_request_body(model, &config.language, &config.dictionary, &audio_buffer, mime_type);
   let response = client
     .post("https://openrouter.ai/api/v1/audio/transcriptions")
     .bearer_auth(api_key)
@@ -2817,13 +2834,20 @@ mod tests {
 
   #[test]
   fn openrouter_body_turns_off_mai_masking_and_skips_auto_language() {
-    let mai = openrouter_request_body("microsoft/mai-transcribe-2", "auto", b"RIFF", "audio/wav");
+    let dictionary = format!("Plaud, TestFlight\npod => Plaud\n{}", "x".repeat(101));
+    let mai = openrouter_request_body("microsoft/mai-transcribe-2", "auto", &dictionary, b"RIFF", "audio/wav");
     assert_eq!(mai["provider"]["options"]["azure"]["profanityFilterMode"], "None");
     assert_eq!(mai["input_audio"]["format"], "wav");
     assert_eq!(mai["input_audio"]["data"], "UklGRg==");
     assert!(mai.get("language").is_none());
-    let qwen = openrouter_request_body("qwen/qwen3-asr-1.7b", "zh", b"x", "audio/webm;codecs=opus");
+    assert_eq!(
+      mai["keyterms"],
+      serde_json::json!(crate::dictionary::terms(&dictionary)[..crate::dictionary::terms(&dictionary).len() - 1])
+    );
+    assert!(openrouter_request_body("microsoft/mai-transcribe-2", "auto", "  ", b"x", "audio/wav").get("keyterms").is_none());
+    let qwen = openrouter_request_body("qwen/qwen3-asr-1.7b", "zh", &dictionary, b"x", "audio/webm;codecs=opus");
     assert!(qwen.get("provider").is_none());
+    assert!(qwen.get("keyterms").is_none());
     assert_eq!(qwen["language"], "zh");
     assert_eq!(qwen["input_audio"]["format"], "webm");
     assert_eq!(openrouter_audio_format("audio/mp4"), "m4a");

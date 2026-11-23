@@ -305,8 +305,10 @@ and its prompt and model parameters are fixed on the server; keep both true when
 - OpenRouter (`openrouter`) replaced Groq on 2026-11-23. It offers `qwen/qwen3-asr-1.7b` (default)
   and `microsoft/mai-transcribe-2` (`settings::OPENROUTER_MODELS`), chosen in the comparison in
   `docs/cloud-transcription.md`. Requests are JSON with base64 WAV (MAI rejects m4a and webm, so the
-  recording window sends WAV) and no dictionary prompt; MAI always gets
-  `provider.options.azure.profanityFilterMode: "None"`, since masking changes what the user said.
+  recording window sends WAV). Dictionary handling is per model, not per provider: MAI gets the
+  dictionary's terms as `keyterms` (it ignores `prompt`); Qwen gets none (it ignores `prompt` and
+  rejects `keyterms`). MAI always gets `provider.options.azure.profanityFilterMode: "None"`, since
+  masking changes what the user said. A newly added model needs its own check of both.
   The legacy `api_key` mirror is never sent to OpenRouter. A saved `groq` config is moved to
   OpenRouter on read with its Groq key dropped (`migrate_removed_providers`).
 - New-install defaults come from `settings::fresh_config_for` and cached hardware tiers, only when

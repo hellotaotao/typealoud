@@ -108,3 +108,20 @@ Decision (2026-11-23): the OpenRouter option defaults to Qwen 1.7B (cheapest, sa
 local engine) and offers MAI-2 with `profanityFilterMode: "None"` as the more accurate choice.
 Scribe is left out: its lead on mixed speech is small next to MAI's, it is the weakest on
 Chinese-only speech, and it costs more than twice as much.
+
+### The dictionary on OpenRouter (2026-11-23)
+
+OpenRouter's endpoint takes the dictionary two ways: `prompt` (free text) and `keyterms` (a list of
+up to 1000 terms of at most 100 characters each). Which one a model uses is not documented per
+model, so five of the maintainer's dictations with misheard names were sent three ways: plain, with
+the terms as `prompt`, and with them as `keyterms` (gpt-6.2-astra, Plaud, TestFlight, Voicely,
+Meeting Mate, Codex, Parakeet).
+
+- MAI ignored `prompt` (output identical to plain) and used `keyterms`: all five came out right
+  ("6.2stra" → "6.2 astra", "Pro" → "Plaud", "test flight" → "TestFlight", "voicely" → "Voicely",
+  "meeting mate" → "Meeting Mate"), at the same price.
+- Qwen ignored `prompt` and answered `keyterms` with a 400 ("The selected model does not support
+  keyterms").
+
+So MAI gets the dictionary as `keyterms` and Qwen gets nothing. Two of the five fixes ("Pro" →
+"Plaud", "6.2stra" → "astra") are beyond the term matching that runs after every engine.
