@@ -39,14 +39,46 @@ pub(super) fn remove_previous(base: &Path, runtime: Runtime) -> Result<()> {
 
 // Manual downloads and maintenance share one writer per pack, not the inference
 // permit. A network outage must never hold a dictation behind a download.
-fn install_lock(runtime: Runtime) -> &'static tokio::sync::Mutex<()> {
-  static CPU: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-  static GPU: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-  match runtime { Runtime::Cpu => &CPU, Runtime::Gpu => &GPU }
+#[derive(Default)]
+struct InstallGate {
+  writer: tokio::sync::Mutex<()>,
+  background_network: Mutex<Option<CancellationToken>>,
+}
+
+impl InstallGate {
+  async fn manual(&self) -> tokio::sync::MutexGuard<'_, ()> {
+    let wait = self.writer.lock();
+    tokio::pin!(wait);
+    // Join the FIFO before inspecting the background token: once queued, no
+    // background try_lock can slip in between cancellation and acquisition.
+    if let std::task::Poll::Ready(guard) = futures_util::poll!(&mut wait) {
+      return guard;
+    }
+    if let Some(network) = self.background_network.lock().unwrap().take() {
+      network.cancel();
+    }
+    wait.await
+  }
+
+  fn background(&self) -> Option<(tokio::sync::MutexGuard<'_, ()>, CancellationToken)> {
+    // Publish the token atomically with taking the writer. A manual waiter
+    // observing a busy writer must see this token, even on another thread.
+    let mut slot = self.background_network.lock().unwrap();
+    let writer = self.writer.try_lock().ok()?;
+    let network = CancellationToken::new();
+    *slot = Some(network.clone());
+    Some((writer, network))
+  }
+}
+
+fn install_gate(runtime: Runtime) -> &'static InstallGate {
+  static CPU: OnceLock<InstallGate> = OnceLock::new();
+  static GPU: OnceLock<InstallGate> = OnceLock::new();
+  match runtime { Runtime::Cpu => &CPU, Runtime::Gpu => &GPU }.get_or_init(InstallGate::default)
 }
 
 pub(super) async fn gpu_install_guard() -> tokio::sync::MutexGuard<'static, ()> {
-  install_lock(Runtime::Gpu).lock().await
+  install_gate(Runtime::Gpu).manual().await
 }
 
 // Called with the lock held. Always hash a cached archive too: a matching
@@ -85,7 +117,7 @@ pub(super) async fn install(
   report: &(dyn Fn(u64) + Sync), done: u64,
 ) -> Result<(), String> {
   let _guard = tokio::select! {
-    guard = install_lock(runtime).lock() => guard,
+    guard = install_gate(runtime).manual() => guard,
     _ = cancel.cancelled() => return Err("DOWNLOAD_CANCELLED".into()),
   };
   install_locked(base, runtime, client, cancel, report, done).await
@@ -96,9 +128,11 @@ fn pending(base: &Path, runtime: Runtime) -> bool {
 }
 
 async fn upgrade_if_installed(base: &Path, runtime: Runtime, client: &reqwest::Client) -> Result<(), String> {
-  let _guard = install_lock(runtime).lock().await;
   if !pending(base, runtime) { return Ok(()); }
-  install_locked(base, runtime, client, &CancellationToken::new(), &|_| {}, 0).await
+  let (_guard, cancel) = install_gate(runtime).background().ok_or("runtime install busy")?;
+  // A manual install or removal may have won between the check and try_lock.
+  if !pending(base, runtime) { return Ok(()); }
+  install_locked(base, runtime, client, &cancel, &|_| {}, 0).await
 }
 
 pub(crate) fn start() {
@@ -136,7 +170,70 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn manual_requests_preempt_only_background_network_and_wait_for_safe_handoff() {
+    let gate = InstallGate::default();
+    let other = InstallGate::default();
+    let (_other_guard, other_network) = other.background().unwrap();
+    let (writing, background_network) = gate.background().unwrap();
+    let mut manual = Box::pin(gate.manual());
+    tokio::select! {
+      biased;
+      _ = &mut manual => panic!("must wait for the current writer to finish"),
+      _ = std::future::ready(()) => {}
+    }
+    assert!(background_network.is_cancelled(), "wake a slow network immediately");
+    assert!(!other_network.is_cancelled(), "independent CPU/Vulkan pack");
+    drop(writing);
+    assert!(gate.background().is_none(), "do not start maintenance ahead of a waiting user");
+    let first = manual.await;
+    let mut second = Box::pin(gate.manual());
+    tokio::select! {
+      biased;
+      _ = &mut second => panic!("manual writes must be serialized"),
+      _ = std::future::ready(()) => {}
+    }
+    drop(first);
+    drop(second);
+    assert!(gate.background().is_some(), "a cancelled waiter cannot starve retries");
+  }
+
+  static TEST_PACKS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+  #[tokio::test]
+  async fn a_real_background_transfer_yields_to_a_manual_install() {
+    use std::sync::Arc;
+    struct StalledDns(tokio::sync::Notify);
+    impl reqwest::dns::Resolve for StalledDns {
+      fn resolve(&self, _: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        self.0.notify_one();
+        Box::pin(std::future::pending())
+      }
+    }
+
+    let _packs = TEST_PACKS.lock().await;
+    let temp = tempfile::tempdir().unwrap();
+    let base = temp.path();
+    let previous = stage_previous(base, Runtime::Cpu);
+    let stalled = Arc::new(StalledDns(tokio::sync::Notify::new()));
+    let slow = reqwest::Client::builder().no_proxy().dns_resolver(stalled.clone()).build().unwrap();
+    let fast = offline_client();
+    let cancel = CancellationToken::new();
+    let foreground = async {
+      stalled.0.notified().await;
+      install(base, Runtime::Cpu, &fast, &cancel, &|_| {}, 0).await
+    };
+
+    let (background, manual) = tokio::time::timeout(Duration::from_secs(3), async {
+      tokio::join!(upgrade_if_installed(base, Runtime::Cpu, &slow), foreground)
+    }).await.expect("manual request must not wait for stalled DNS or a network timeout");
+    assert_eq!(background.unwrap_err(), "DOWNLOAD_CANCELLED");
+    assert_ne!(manual.unwrap_err(), "DOWNLOAD_CANCELLED", "only the background download was cancelled");
+    assert_eq!(usable_cli(base, Runtime::Cpu), Some(previous));
+  }
+
+  #[tokio::test]
   async fn offline_upgrade_preserves_old_cli_and_skips_uninstalled_packs() {
+    let _packs = TEST_PACKS.lock().await;
     let temp = tempfile::tempdir().unwrap();
     let base = temp.path();
     let client = offline_client();
@@ -171,6 +268,7 @@ mod tests {
   #[tokio::test]
   #[ignore]
   async fn verified_cached_archive_survives_concurrent_manual_and_automatic_upgrade() {
+    let _packs = TEST_PACKS.lock().await;
     let temp = tempfile::tempdir().unwrap();
     let base = temp.path().join("local-asr");
     let previous = stage_previous(&base, Runtime::Cpu);
@@ -182,7 +280,9 @@ mod tests {
       upgrade_if_installed(&base, Runtime::Cpu, &client),
       install(&base, Runtime::Cpu, &client, &cancel, &|_| {}, 0),
     );
-    automatic.unwrap();
+    // If the manual request won or cancelled a pending HTTP request,
+    // maintenance defers to it; neither interrupts verified extraction.
+    assert!(automatic.is_ok() || matches!(automatic.as_ref().map_err(String::as_str), Err("runtime install busy" | "DOWNLOAD_CANCELLED")));
     manual.unwrap();
     assert_eq!(usable_cli(&base, Runtime::Cpu), Some(runtime_cli_path(&base, Runtime::Cpu)));
     assert!(previous.exists(), "in-flight workers retain their old files");
