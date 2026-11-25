@@ -961,7 +961,7 @@ pub fn set_glass_appearance(window: tauri::WebviewWindow, dark: bool) -> Result<
 pub fn hide_input_prompt(app: AppHandle) -> Result<(), String> {
   let _ = app.emit_to("input-prompt", "cleanup-microphone", ());
   if let Some(window) = app.get_webview_window("input-prompt") {
-    window.hide().map_err(stringify_error)?;
+    crate::prompt_visibility::set_visible(&window, false).map_err(stringify_error)?;
   }
   Ok(())
 }

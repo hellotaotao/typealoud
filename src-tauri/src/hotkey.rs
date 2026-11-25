@@ -1175,7 +1175,9 @@ fn dispatch_action(app: &AppHandle, action: Action) {
           wait_for_position(&window, target);
         }
         let show_started = Instant::now();
-        let _ = window.show();
+        if let Err(error) = crate::prompt_visibility::set_visible(&window, true) {
+          log::warn!("hotkey: show recording prompt failed: {error}");
+        }
         show_elapsed = show_started.elapsed();
       }
       let position_elapsed = position_started.elapsed().saturating_sub(show_elapsed);
