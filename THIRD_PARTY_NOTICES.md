@@ -44,8 +44,8 @@ the user sets up the engine that needs it.
 
 ### Qwen3-ASR (default local engine)
 
-- **llama.cpp** `b9960` release archives from
-  [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp/releases/tag/b9960), under the MIT
+- **llama.cpp** `b12651` release archives from
+  [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp/releases/tag/b12651), under the MIT
   License. On Windows, choosing GPU also downloads upstream's Vulkan archive.
 - **Qwen3-ASR 0.6B and 1.7B**, as the GGUF conversions in `ggml-org/Qwen3-ASR-0.6B-GGUF` and
   `ggml-org/Qwen3-ASR-1.7B-GGUF` on Hugging Face. The original models,

@@ -13,7 +13,7 @@ and the measurements. The upstream worker-reuse bug is written up in
 
 | Engine | Model id | Runtime | Platforms | Role |
 |---|---|---|---|---|
-| Qwen3-ASR 0.6B Q8_0 | `qwen3-asr-0.6b-q8_0` | upstream llama.cpp `b9960`, `llama-mtmd-cli` | macOS (Metal); Windows x64 and Linux x64 on CPU, optional Vulkan on Windows | Default, recommended |
+| Qwen3-ASR 0.6B Q8_0 | `qwen3-asr-0.6b-q8_0` | upstream llama.cpp `b12651`, `llama-mtmd-cli` | macOS (Metal); Windows x64 and Linux x64 on CPU, optional Vulkan on Windows | Default, recommended |
 | Qwen3-ASR 1.7B Q8_0 | `qwen3-asr-1.7b-q8_0` | same | same | Experimental since 1.15.0. About 2.52 GB to download, about 2.9 GB peak process memory measured on an M4 / 24 GB |
 | Nemotron 3.5 streaming 0.6B Q8_0 | `nemotron-3.5-asr-streaming-0.6b-q8_0` | NVIDIA `nemo-speech` 0.1.0 sidecar (`nemotron_asr.rs`) | macOS arm64 (Metal), Windows x64 (CPU); unavailable elsewhere | Text appears while speaking; noticeably less accurate |
 
@@ -87,7 +87,7 @@ Decided 2026-07-13 after two rounds of measurement on the maintainer's machines.
 | Native Swift rewrite | Rejected. The Metal speed comes from llama.cpp, not from the host language. |
 
 Every platform runs the same code path; only the downloaded archive differs. llama.cpp must be at
-least `b9173`, which fixed a Qwen3-ASR repetition loop (llama.cpp #22357). TypeAloud pins `b9960`,
+least `b9173`, which fixed a Qwen3-ASR repetition loop (llama.cpp #22357). TypeAloud pins `b12651`,
 and an upgrade needs a regression pass.
 
 Quality notes from the original comparison (M4, 2026-07-12/13): on clean speech Q8_0 matched sherpa
@@ -178,6 +178,18 @@ have since been discarded. The figures in this section are what was kept from th
   happens after that is in [dictation-recovery.md](dictation-recovery.md).
 - Cancel means kill (`kill_on_drop`). A chat-protocol error or timeout throws the worker away and
   retries through the one-shot `--audio … -p "a"` path.
+- **Why `b12651` (2026-11-23).** `b9960` aborts a *reused* resident worker with
+  `tools/mtmd/mtmd.cpp:1655: GGML_ASSERT(offset <= batch->output_embd.size()) failed` (exit code
+  `0xC0000409`, nothing else on stderr). The first decode of a fresh worker is fine; the 2nd to 7th
+  dies, on Vulkan0 (`-c 2048`, the app's real context), and the app log showed the same line on a
+  GPU worker. A stand-alone harness replaying the chat protocol (`/clear`, `/audio`, `a`) crashed in
+  16 of 16 fresh-process runs. On `b12651` the same harness ran 4 x 12 reused decodes on Vulkan0 and
+  2 x 12 on CPU with no crash and correct text. Windows CPU/Vulkan were verified; the macOS and Linux
+  packs for `b12651` only had their URL and sha256 updated (not run). The first Vulkan decode after
+  a cold start took ~14.5 s once (shader compilation), well past the 15 s first-byte limit, so watch
+  for it. Older `b9960` runtime folders are deleted by `cleanup_legacy_assets`.
+  A failed resident worker now logs the engine's last 40 stderr lines (`stderr|`) through the normal
+  logger, so it follows the app's log level and rotation; lines carrying `<asr_text>` are dropped.
 
 ## Partial text is progress, not streaming
 
