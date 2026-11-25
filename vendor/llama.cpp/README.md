@@ -1,10 +1,9 @@
 # The llama.cpp reset patch — kept as a record, no longer built
 
-TypeAloud ships **upstream's own llama.cpp `b9960` releases** on every platform.
-Nothing here is built or bundled. The patch and this note stay because the bug
-they describe is real, still present upstream, and TypeAloud now reuses a worker
-across the chunks of one recording session — so the measurement below is the
-thing that decides whether that reuse is a win.
+TypeAloud downloads the official llama.cpp `b12651` archives. Neither this
+patch nor a private engine is built or included in the installer.
+[Upstream PR #31165](https://github.com/ggml-org/llama.cpp/pull/31165)
+fixed the batch lifetime described below; the fix is in the pinned build.
 
 ## The bug
 
@@ -45,32 +44,23 @@ has seen. That alone was not worth a private native build.
 
 ## Where reuse stands now
 
-TypeAloud no longer retires the worker after every decode: it is leased to one
-recording session and serves that session's chunks, which saves a model load per
-chunk on a long dictation. That deliberately runs into the bug above, so the
-guard is `repeats_previous` in `local_asr.rs` — a decode returning the previous
-transcript verbatim is rejected, the worker is destroyed, and the chunk is
-re-decoded one-shot. **A wrong transcript is never inserted**; what the bug costs
-is time.
+A worker can serve multiple chunks of the same recording, never a different
+recording. The upstream fix keeps the media batch local to a single request.
+On the old build, the repeated-text guard could reject the previous clip's
+transcript and retry, but it could not prevent the engine itself from aborting.
+See [TypeAloud PR #23](https://github.com/hellotaotao/typealoud/pull/23)
+for the Windows CPU/Vulkan comparison.
 
-Whether the trade pays depends entirely on the contamination *rate*, and the
-measurement above (every decode after the first) was taken with alternating
-clips back-to-back, not at TypeAloud's real chunk cadence. If it still holds at
-that cadence, reuse is a net loss: each reused chunk pays a rejected decode plus
-a cold one-shot, where retiring after each decode paid one hidden load.
-
-`real_reuse_contamination_rate` in `local_asr.rs` measures it — `#[ignore]`d,
-needs the real assets plus two clips of different speech:
+Keep the different-speech regression when changing the engine again:
 
 ```
 TYPEALOUD_TEST_WAV_A=a.wav TYPEALOUD_TEST_WAV_B=b.wav \
   cargo test real_reuse_contamination_rate -- --ignored --nocapture
 ```
 
-It prints the rate and stays green either way; the invariant it asserts is that
-a contaminated decode is never accepted. Note that the `0xC0000409` abort on the
-third decode is out of reach in production: contamination is caught on the second
-and the worker dies before a third.
+Inspect the printed counts as well as the exit status: the test checks that
+stale text is never accepted, but a decode recovered by starting a new worker
+still counts as a failed reuse.
 
 ## If it is ever revisited
 

@@ -158,6 +158,12 @@ Log files rotate at 2 MB with two archives kept, about 6 MB in total. A timeout 
 callback only shows that the frontend didn't observe the callback; it doesn't identify a root cause
 by itself. `scripts/dictation-report.mjs` summarizes these lines offline without exporting content.
 
+Qwen continuously drains the engine's stderr through a small fixed-size buffer. Only a known
+diagnostic code survives (such as `mtmd_batch_bounds_assert`); unmatched output is discarded.
+The resident worker logs the code on failure only. A failed one-shot fallback reports its exit
+status and the same classification, never a raw stderr line. This also protects unmarked
+continuations of a multiline transcript.
+
 ## Known gaps
 
 - In-memory recovery doesn't survive quitting the app; recovery is durable only after a persistence

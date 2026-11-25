@@ -183,6 +183,8 @@ pub fn run() {
         log::warn!("local-asr: legacy asset cleanup failed: {error:#}");
       }
 
+      local_asr::runtime_upgrade::start();
+
       // Auto-update: checks GitHub Releases' latest.json and verifies packages
       // against our minisign pubkey (docs/superpowers/specs/2026-07-13-auto-update-design.md).
       #[cfg(desktop)]

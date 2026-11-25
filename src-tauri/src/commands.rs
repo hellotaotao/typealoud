@@ -1923,9 +1923,9 @@ pub fn set_gpu_device(device: String) -> Result<String, String> {
 /// Remove the GPU pack and fall back to CPU. The models and the required CPU
 /// runtime stay: this frees 33 MB, not the ~1 GB the engine needs.
 #[tauri::command]
-pub fn delete_gpu_runtime(app: AppHandle) -> Result<bool, String> {
+pub async fn delete_gpu_runtime(app: AppHandle) -> Result<bool, String> {
   log::info!("command:delete_gpu_runtime");
-  crate::local_asr::delete_gpu_runtime()?;
+  crate::local_asr::delete_gpu_runtime().await?;
   settings::mutate_config(|config| {
     if settings::normalize_local_compute(&config.local_compute) == "gpu" {
       config.local_compute = "auto".into();

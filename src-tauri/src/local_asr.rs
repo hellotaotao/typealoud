@@ -15,7 +15,6 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::Emitter;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::io::AsyncBufReadExt;
 use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout};
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
@@ -248,6 +247,9 @@ pub fn total_download_bytes() -> u64 {
   MODEL_ASSETS.iter().map(|a| a.size).sum::<u64>() + llama_zip_asset().size
 }
 
+pub(crate) mod runtime_upgrade;
+use runtime_upgrade::usable_cli;
+
 pub fn local_asr_dir() -> Result<PathBuf> {
   Ok(crate::settings::app_data_dir()?.join("local-asr"))
 }
@@ -269,15 +271,13 @@ fn cleanup_legacy_assets_at(app_data: &Path) -> Result<()> {
   // this exact directory; leaving it behind costs roughly another model copy.
   remove_legacy_dir(&app_data.join("models/qwen3-asr-0.6b-int8"))?;
 
-  // Both directions of the patched-runtime experiment leave a stale extraction
-  // behind, so clear whichever one is not current. macOS arm64 and, for v1.10.x,
-  // Windows ran the patched build; everything now runs upstream b9960 again, and
-  // an upgrade that switches back would otherwise strand ~14 MB per machine.
-  // Builds before the current pin are dead weight too (b9960 crashed a reused
-  // worker on `mtmd.cpp:1655`, see docs/local-asr.md).
-  for stale in ["b9960", "b9960-vulkan", "b9960-saytype-reset-v1"] {
-    if stale != LLAMA_BUILD && stale != format!("{LLAMA_BUILD}-vulkan") {
-      remove_legacy_dir(&app_data.join("local-asr/bin").join(stale))?;
+  let base = app_data.join("local-asr");
+  remove_legacy_dir(&base.join("bin/b9960-saytype-reset-v1"))?;
+  // Only on a subsequent launch: no running session can still need the old
+  // executable or dynamically loaded libraries when we retire them here.
+  for runtime in [Runtime::Cpu, Runtime::Gpu] {
+    if runtime_is_installed(&base, runtime) {
+      runtime_upgrade::remove_previous(&base, runtime)?;
     }
   }
 
@@ -307,13 +307,15 @@ fn runtime_bin_dir(base: &Path, runtime: Runtime) -> PathBuf {
   base.join("bin").join(id)
 }
 
+#[cfg(test)]
 pub fn cli_path(base: &Path) -> PathBuf {
   runtime_cli_path(base, Runtime::Cpu)
 }
 
+const CLI_NAME: &str = if cfg!(windows) { "llama-mtmd-cli.exe" } else { "llama-mtmd-cli" };
+
 fn runtime_cli_path(base: &Path, runtime: Runtime) -> PathBuf {
-  let name = if cfg!(target_os = "windows") { "llama-mtmd-cli.exe" } else { "llama-mtmd-cli" };
-  runtime_bin_dir(base, runtime).join(name)
+  runtime_bin_dir(base, runtime).join(CLI_NAME)
 }
 
 /// Records which bundled/downloaded archive produced the extracted runtime.
@@ -336,20 +338,18 @@ pub(crate) fn read_runtime_stamp(path: &Path) -> Option<String> {
     .ok()
 }
 
-fn write_runtime_stamp(base: &Path, runtime: Runtime) {
-  if let Some(asset) = runtime_asset(runtime) {
-    let _ = fs::write(runtime_stamp_path(base, runtime), asset.sha256);
-  }
+fn write_runtime_stamp(base: &Path, runtime: Runtime) -> Result<(), String> {
+  let asset = runtime_asset(runtime).ok_or("no runtime archive for this platform")?;
+  fs::write(runtime_stamp_path(base, runtime), asset.sha256).map_err(|e| e.to_string())
+}
+
+fn verified_cli(cli: &Path, hash: &str) -> bool {
+  cli.is_file() && is_executable(cli)
+    && read_runtime_stamp(&cli.with_file_name(RUNTIME_STAMP_FILE)).is_some_and(|stamp| stamp.trim() == hash)
 }
 
 fn runtime_is_installed(base: &Path, runtime: Runtime) -> bool {
-  let Some(asset) = runtime_asset(runtime) else { return false };
-  let cli = runtime_cli_path(base, runtime);
-  fs::metadata(&cli).map(|m| m.is_file()).unwrap_or(false)
-    && is_executable(&cli)
-    && read_runtime_stamp(&runtime_stamp_path(base, runtime))
-      .map(|stamp| stamp.trim() == asset.sha256)
-      .unwrap_or(false)
+  runtime_asset(runtime).is_some_and(|asset| verified_cli(&runtime_cli_path(base, runtime), asset.sha256))
 }
 
 fn installed_runtime_is_current(base: &Path) -> bool {
@@ -392,10 +392,7 @@ fn qwen_ready_at(dir: &Path, model: &str) -> bool {
       .map(|metadata| metadata.is_file() && metadata.len() == asset.size)
       .unwrap_or(false)
   });
-  let cli = cli_path(dir);
-  let cli_ok = fs::metadata(&cli).map(|m| m.is_file()).unwrap_or(false)
-    && is_executable(&cli);
-  models_ok && cli_ok
+  models_ok && usable_cli(dir, Runtime::Cpu).is_some()
 }
 
 #[cfg(test)]
@@ -432,7 +429,7 @@ static GPU_DISABLED: AtomicBool = AtomicBool::new(false);
 
 /// Devices the installed GPU runtime reports, cached per process. Cleared when
 /// the pack is installed or removed.
-static GPU_DEVICES: Mutex<Option<Vec<GpuDevice>>> = Mutex::new(None);
+static GPU_DEVICES: Mutex<Option<(PathBuf, Vec<GpuDevice>)>> = Mutex::new(None);
 
 /// The GPU the user picked (`AppConfig::local_gpu_device`), "" for none.
 static GPU_DEVICE_CHOICE: Mutex<String> = Mutex::new(String::new());
@@ -684,58 +681,93 @@ pub fn gpu_runtime_supported() -> bool {
 }
 
 pub fn gpu_runtime_ready_at(base: &Path) -> bool {
-  runtime_is_installed(base, Runtime::Gpu)
+  usable_cli(base, Runtime::Gpu).is_some()
 }
 
-/// The engine's own stderr, kept for failure diagnosis. It used to go to
-/// `Stdio::null()`, so a worker that crashed or stopped answering left no trace
-/// of why. Only the latest lines are held and they reach the log only when a
-/// resident worker fails.
-const STDERR_TAIL_LINES: usize = 40;
-const STDERR_LINE_MAX: usize = 200;
-type StderrTail = std::sync::Arc<Mutex<std::collections::VecDeque<String>>>;
-
-fn push_stderr_line(tail: &mut std::collections::VecDeque<String>, raw: &str) {
-  let line = raw.trim_end();
-  // The transcript is stdout. Drop anything carrying the ASR marker anyway:
-  // dictation text stays out of log files.
-  if line.is_empty() || line.contains("<asr_text>") {
-    return;
-  }
-  if tail.len() >= STDERR_TAIL_LINES {
-    tail.pop_front();
-  }
-  tail.push_back(line.chars().take(STDERR_LINE_MAX).collect());
+// Only trusted, fixed labels may escape the child process. A backtrace,
+// echoed prompt or unmarked continuation can sit next to a real error.
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+enum EngineDiagnostic {
+  #[default]
+  Unknown,
+  DecodeFailed,
+  DeviceLost,
+  GgmlAssert,
+  MtmdBatchBoundsAssert,
 }
 
-/// Drain the worker's stderr for as long as it lives. Draining is also what
-/// keeps a verbose chat-mode process from blocking on a full pipe.
-fn spawn_stderr_reader(stderr: ChildStderr) -> StderrTail {
-  let tail = StderrTail::default();
-  let sink = tail.clone();
-  tokio::spawn(async move {
-    let mut reader = tokio::io::BufReader::new(stderr);
-    let mut buf = Vec::new();
-    loop {
-      buf.clear();
-      match reader.read_until(b'\n', &mut buf).await {
-        Ok(0) | Err(_) => break,
-        Ok(_) => push_stderr_line(&mut sink.lock().unwrap(), &String::from_utf8_lossy(&buf)),
-      }
+impl EngineDiagnostic {
+  fn label(self) -> &'static str {
+    match self {
+      Self::Unknown => "unknown",
+      Self::DecodeFailed => "decode_failed",
+      Self::DeviceLost => "vulkan_device_lost",
+      Self::GgmlAssert => "ggml_assert",
+      Self::MtmdBatchBoundsAssert => "mtmd_batch_bounds_assert",
     }
-  });
-  tail
+  }
 }
 
-fn log_stderr_tail(context: &str, tail: &StderrTail) {
-  let lines: Vec<String> = tail.lock().unwrap().iter().cloned().collect();
-  if lines.is_empty() {
-    log::warn!("local-asr: {context}: engine stderr tail is empty");
-    return;
+const MTMD_BATCH_ASSERT: &str = "GGML_ASSERT(offset <= batch->output_embd.size())";
+const ENGINE_SIGNATURES: &[(&str, EngineDiagnostic)] = &[
+  (MTMD_BATCH_ASSERT, EngineDiagnostic::MtmdBatchBoundsAssert),
+  ("GGML_ASSERT(", EngineDiagnostic::GgmlAssert),
+  ("VK_ERROR_DEVICE_LOST", EngineDiagnostic::DeviceLost),
+  ("failed to decode audio", EngineDiagnostic::DecodeFailed),
+  ("failed to decode token", EngineDiagnostic::DecodeFailed),
+];
+
+// Drain fixed-size blocks, not lines: a child can emit arbitrarily many bytes
+// without a newline. Keep just enough overlap to match a split signature.
+async fn scan_engine_stderr(
+  mut source: impl tokio::io::AsyncRead + Unpin,
+  mut observe: impl FnMut(EngineDiagnostic),
+) -> std::io::Result<()> {
+  let overlap = ENGINE_SIGNATURES.iter().map(|(s, _)| s.len()).max().unwrap_or(1) - 1;
+  let mut buf = vec![0; overlap + 4096];
+  let mut kept = 0;
+  loop {
+    let n = source.read(&mut buf[kept..kept + 4096]).await?;
+    if n == 0 { return Ok(()); }
+    let end = kept + n;
+    let block = String::from_utf8_lossy(&buf[..end]);
+    for &(signature, diagnostic) in ENGINE_SIGNATURES {
+      if block.contains(signature) { observe(diagnostic); }
+    }
+    kept = end.min(overlap);
+    buf.copy_within(end - kept..end, 0);
   }
-  log::warn!("local-asr: {context}: last {} engine stderr lines follow", lines.len());
-  for line in lines {
-    log::warn!("local-asr:   stderr| {line}");
+}
+
+struct WorkerDiagnostics {
+  code: std::sync::Arc<Mutex<EngineDiagnostic>>,
+  reader: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for WorkerDiagnostics {
+  fn drop(&mut self) {
+    self.reader.abort();
+  }
+}
+
+impl WorkerDiagnostics {
+  fn start(stderr: ChildStderr) -> Self {
+    let code = std::sync::Arc::new(Mutex::new(EngineDiagnostic::Unknown));
+    let sink = code.clone();
+    let reader = tokio::spawn(async move {
+      let _ = scan_engine_stderr(stderr, |next| {
+        let mut code = sink.lock().unwrap();
+        *code = (*code).max(next);
+      }).await;
+    });
+    Self { code, reader }
+  }
+
+  async fn log_failure(&mut self, context: &'static str) {
+    // stdout can close before stderr is fully drained. A still-live hung
+    // child must not hold up fallback while we wait for its stderr to close.
+    let _ = tokio::time::timeout(Duration::from_millis(100), &mut self.reader).await;
+    log::warn!("local-asr: {context}: engine_diagnostic={}", self.code.lock().unwrap().label());
   }
 }
 
@@ -787,14 +819,12 @@ fn parse_device_list(stdout: &str) -> Vec<GpuDevice> {
 /// empty list means the machine has no usable Vulkan device (no driver, or a
 /// GPU too old) — the Settings panel says so instead of silently running CPU.
 pub async fn gpu_devices() -> Vec<GpuDevice> {
-  if let Some(cached) = GPU_DEVICES.lock().unwrap().clone() {
-    return cached;
-  }
   let Ok(base) = local_asr_dir() else { return Vec::new() };
-  if !gpu_runtime_ready_at(&base) {
-    return Vec::new();
+  let Some(cli) = usable_cli(&base, Runtime::Gpu) else { return Vec::new() };
+  if let Some((cached_cli, devices)) = GPU_DEVICES.lock().unwrap().as_ref() {
+    if *cached_cli == cli { return devices.clone(); }
   }
-  let output = local_asr_command(runtime_cli_path(&base, Runtime::Gpu))
+  let output = local_asr_command(cli.clone())
     .arg("--list-devices")
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
@@ -817,7 +847,7 @@ pub async fn gpu_devices() -> Vec<GpuDevice> {
       devices.iter().map(|device| format!("{}={}", device.id, device.name)).collect::<Vec<_>>().join(", ")
     }
   );
-  *GPU_DEVICES.lock().unwrap() = Some(devices.clone());
+  *GPU_DEVICES.lock().unwrap() = Some((cli, devices.clone()));
   devices
 }
 
@@ -918,26 +948,12 @@ pub async fn download_gpu_runtime(
   app: tauri::AppHandle,
   cancel: CancellationToken,
 ) -> Result<(), String> {
-  let asset = gpu_zip_asset().ok_or("GPU acceleration is not available on this platform")?;
   let dir = local_asr_dir().map_err(|e| e.to_string())?;
-  if gpu_runtime_ready_at(&dir) {
-    return Ok(());
-  }
-  let client = reqwest::Client::builder()
-    .connect_timeout(std::time::Duration::from_secs(15))
-    .build()
-    .map_err(|e| e.to_string())?;
-  let report = |downloaded: u64| emit_gpu_progress(&app, "downloading", downloaded, None);
-
-  let archive = dir.join(asset.rel_path);
-  if !fs::metadata(&archive).map(|m| m.len() == asset.size).unwrap_or(false) {
-    download_asset(&report, &client, &dir, asset, &cancel, 0).await?;
-  }
-  let extract_dir = dir.clone();
-  tokio::task::spawn_blocking(move || extract_runtime_archive(&extract_dir, Runtime::Gpu))
-    .await
-    .map_err(|e| e.to_string())??;
-  let _ = fs::remove_file(&archive);
+  if runtime_is_installed(&dir, Runtime::Gpu) { return Ok(()); }
+  let client = reqwest::Client::builder().connect_timeout(Duration::from_secs(15))
+    .build().map_err(|e| e.to_string())?;
+  let report = |downloaded| emit_gpu_progress(&app, "downloading", downloaded, None);
+  runtime_upgrade::install(&dir, Runtime::Gpu, &client, &cancel, &report, 0).await?;
 
   // Only a process started after this can use the pack, and the device list was
   // cached as "none" while it was missing.
@@ -948,7 +964,8 @@ pub async fn download_gpu_runtime(
 }
 
 /// Remove the GPU pack, leaving the required CPU runtime and the models alone.
-pub fn delete_gpu_runtime() -> Result<(), String> {
+pub async fn delete_gpu_runtime() -> Result<(), String> {
+  let _guard = runtime_upgrade::gpu_install_guard().await;
   shutdown_resident_worker();
   let dir = local_asr_dir().map_err(|e| e.to_string())?;
   if let Some(asset) = gpu_zip_asset() {
@@ -956,6 +973,7 @@ pub fn delete_gpu_runtime() -> Result<(), String> {
     let _ = fs::remove_file(dir.join(format!("{}.part", asset.rel_path)));
   }
   *GPU_DEVICES.lock().unwrap() = None;
+  runtime_upgrade::remove_previous(&dir, Runtime::Gpu).map_err(|e| e.to_string())?;
   match fs::remove_dir_all(runtime_bin_dir(&dir, Runtime::Gpu)) {
     Ok(()) => Ok(()),
     Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -1217,8 +1235,7 @@ struct ResidentWorker {
   /// decode the previous audio, so it is load-bearing, not a debug aid.
   last_transcript: Option<String>,
   decodes_served: u32,
-  /// Latest engine stderr lines, logged when this worker stalls.
-  stderr_tail: StderrTail,
+  diagnostics: WorkerDiagnostics,
 }
 
 impl ResidentWorker {
@@ -1229,7 +1246,7 @@ impl ResidentWorker {
     runtime: Runtime,
     model: &'static str,
   ) -> Result<Self> {
-    let mut command = local_asr_command(runtime_cli_path(base, runtime));
+    let mut command = local_asr_command(usable_cli(base, runtime).context("no verified runtime")?);
     pin_gpu_device(&mut command, runtime).await;
     let mut child = command
       .arg("-m").arg(base.join(qwen_assets(model)[0].rel_path))
@@ -1242,17 +1259,16 @@ impl ResidentWorker {
       .stdin(Stdio::piped())
       .stdout(Stdio::piped())
       // Chat-mode stderr is verbose enough to fill a pipe over a long session,
-      // so a reader drains it continuously and keeps only the latest lines.
+      // so a reader drains it continuously and retains only a fixed code.
       .stderr(Stdio::piped())
       .kill_on_drop(true)
       .spawn()
       .context("failed to start resident llama-mtmd-cli")?;
     let stdin = child.stdin.take().expect("stdin is piped");
     let mut stdout = child.stdout.take().expect("stdout is piped");
-    let stderr_tail = spawn_stderr_reader(child.stderr.take().expect("stderr is piped"));
+    let mut diagnostics = WorkerDiagnostics::start(child.stderr.take().expect("stderr is piped"));
     if let Err(error) = read_chat_response(&mut stdout, 0, false, |_| {}).await {
-      tokio::time::sleep(Duration::from_millis(100)).await;
-      log_stderr_tail("worker never reached its initial prompt", &stderr_tail);
+      diagnostics.log_failure("worker never reached its initial prompt").await;
       return Err(error.context("resident llama-mtmd-cli did not reach its initial prompt"));
     }
     #[cfg(test)]
@@ -1268,7 +1284,7 @@ impl ResidentWorker {
       session_id,
       last_transcript: None,
       decodes_served: 0,
-      stderr_tail,
+      diagnostics,
       epoch: RESIDENT_EPOCH.load(Ordering::Relaxed),
     })
   }
@@ -1881,9 +1897,8 @@ async fn transcribe_wav_inner_for(
   let worker_reused = reusable.is_some();
   let mut resident_spawn_ms = None;
   // A worker that never reaches its chat prompt must not fail the dictation:
-  // fall through to the one-shot path, which captures the child's stderr and
-  // so reports the real cause (a broken runtime install, an unreadable model)
-  // instead of the opaque "did not reach its initial prompt".
+  // fall through to the one-shot path, which reports the exit status and a
+  // bounded diagnostic code if the CLI still cannot run.
   let started_worker = match reusable {
     Some(worker) => Some(worker),
     None => {
@@ -1938,9 +1953,7 @@ async fn transcribe_wav_inner_for(
         return Ok(text);
       }
       Ok(Err(error)) => {
-        // Let the stderr reader drain what the dying process wrote last.
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        log_stderr_tail("resident worker failed", &worker.stderr_tail);
+        worker.diagnostics.log_failure("resident worker failed").await;
         log::warn!(
           "local-asr: resident worker failed, retrying one-shot: runtime={} reused={} elapsed_ms={} {error:#}",
           worker.runtime.label(),
@@ -1949,7 +1962,7 @@ async fn transcribe_wav_inner_for(
         );
       }
       Err(_) => {
-        log_stderr_tail("resident worker hit the attempt deadline", &worker.stderr_tail);
+        worker.diagnostics.log_failure("resident worker hit the attempt deadline").await;
         log::warn!(
           "local-asr: resident worker timed out after {}s, retrying one-shot",
           TRANSCRIBE_TIMEOUT.as_secs()
@@ -1968,14 +1981,14 @@ async fn transcribe_wav_inner_for(
   }
 
   // Compatibility fallback: preserve the original one-process-per-clip path
-  // and its detailed stderr diagnostics if chat mode ever drifts in a future
+  // and its classified failure diagnostics if chat mode ever drifts in a future
   // pinned llama.cpp build.
   // This path has no ready prompt, so its phase timing intentionally includes
   // process start, model initialization, and decode as one `one_shot_ms` value.
   let started = std::time::Instant::now();
   progress.enter("one-shot-decode");
   let one_shot_runtime = selected_runtime(&base);
-  let mut command = local_asr_command(runtime_cli_path(&base, one_shot_runtime));
+  let mut command = local_asr_command(usable_cli(&base, one_shot_runtime).context("no verified runtime")?);
   pin_gpu_device(&mut command, one_shot_runtime).await;
   let mut child = command
     .arg("-m").arg(base.join(qwen_assets(model)[0].rel_path))
@@ -1996,7 +2009,7 @@ async fn transcribe_wav_inner_for(
     .context("failed to start llama-mtmd-cli")?;
 
   let mut child_stdout = child.stdout.take().expect("stdout is piped");
-  let mut child_stderr = child.stderr.take().expect("stderr is piped");
+  let child_stderr = child.stderr.take().expect("stderr is piped");
 
   // Shared progress state read by the hang watchdog below. The stdout loop
   // stamps `last_progress_ms` (millis since `started`) every time bytes land and
@@ -2037,9 +2050,9 @@ async fn transcribe_wav_inner_for(
       Ok::<Vec<u8>, std::io::Error>(acc)
     };
     let drain_stderr = async {
-      let mut acc = Vec::new();
-      child_stderr.read_to_end(&mut acc).await?;
-      Ok::<Vec<u8>, std::io::Error>(acc)
+      let mut code = EngineDiagnostic::Unknown;
+      scan_engine_stderr(child_stderr, |next| code = code.max(next)).await?;
+      Ok::<_, std::io::Error>(code)
     };
     tokio::try_join!(stream_stdout, drain_stderr)
   };
@@ -2079,7 +2092,7 @@ async fn transcribe_wav_inner_for(
     }
   };
 
-  let (stdout_bytes, stderr_bytes) = tokio::select! {
+  let (stdout_bytes, diagnostic) = tokio::select! {
     pumped = tokio::time::timeout(TRANSCRIBE_TIMEOUT, pump) => pumped
       .map_err(|_| anyhow::anyhow!("local ASR timed out after {}s", TRANSCRIBE_TIMEOUT.as_secs()))?
       .context("failed to read llama-mtmd-cli output")?,
@@ -2089,19 +2102,17 @@ async fn transcribe_wav_inner_for(
   let status = child.wait().await.context("failed to run llama-mtmd-cli")?;
 
   if !status.success() {
-    let stderr = String::from_utf8_lossy(&stderr_bytes);
-    let last = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("");
     // After dynamic ctx sizing (see CTX_CAP), a decode failure almost always
     // means the clip still exceeded the KV-cache cap. Translate the raw llama
     // error ("failed to decode audio"/"failed to decode token") into something
     // the user can act on instead of surfacing the CLI's internals.
-    if stderr.contains("failed to decode") {
+    if diagnostic == EngineDiagnostic::DecodeFailed {
       let secs = wav_bytes.len().saturating_sub(44) / 32000;
       anyhow::bail!(
         "Recording is too long for the on-device model ({secs}s). Keep local dictation under ~13 minutes, or switch to a cloud provider in Settings for long recordings."
       );
     }
-    anyhow::bail!("llama-mtmd-cli failed ({status}): {last}");
+    anyhow::bail!("llama-mtmd-cli failed ({status}): engine_diagnostic={}", diagnostic.label());
   }
 
   let text = parse_mtmd_output(&String::from_utf8_lossy(&stdout_bytes));
@@ -2263,8 +2274,7 @@ fn qwen_status_at(dir: &Path, model: &str, downloading: bool) -> ModelStatus {
       }
     }
   }
-  let cli = cli_path(dir);
-  if fs::metadata(&cli).map(|m| m.is_file()).unwrap_or(false) && is_executable(&cli) {
+  if usable_cli(dir, Runtime::Cpu).is_some() {
     downloaded += zip.size;
   } else {
     complete = false;
@@ -2322,19 +2332,7 @@ async fn download_qwen_model(model: &str, app: tauri::AppHandle, cancel: Cancell
   }
 
   ensure_bundled_runtime_at(&dir)?;
-  let zip = llama_zip_asset();
-  if !(fs::metadata(cli_path(&dir)).map(|m| m.is_file()).unwrap_or(false) && is_executable(&cli_path(&dir))) {
-    let zip_final = dir.join(zip.rel_path);
-    if !fs::metadata(&zip_final).map(|m| m.len() == zip.size).unwrap_or(false) {
-      download_asset(&report, &client, &dir, zip, &cancel, done).await?;
-    }
-    let dir2 = dir.clone();
-    tokio::task::spawn_blocking(move || extract_runtime_archive(&dir2, Runtime::Cpu))
-      .await
-      .map_err(|e| e.to_string())??;
-    let _ = fs::remove_file(&zip_final); // archive no longer needed
-  }
-  Ok(())
+  runtime_upgrade::install(&dir, Runtime::Cpu, &client, &cancel, &report, done).await
 }
 
 /// Extract the archive into bin/<LLAMA_BUILD>/, flattening every entry to its
@@ -2396,8 +2394,7 @@ fn extract_runtime_archive(base: &Path, runtime: Runtime) -> Result<(), String> 
   if !fs::metadata(runtime_cli_path(base, runtime)).map(|m| m.is_file()).unwrap_or(false) {
     return Err("archive did not contain llama-mtmd-cli".into());
   }
-  write_runtime_stamp(base, runtime);
-  Ok(())
+  write_runtime_stamp(base, runtime)
 }
 
 #[cfg(windows)]
@@ -2421,8 +2418,7 @@ fn extract_runtime_archive(base: &Path, runtime: Runtime) -> Result<(), String> 
   if !fs::metadata(runtime_cli_path(base, runtime)).map(|m| m.is_file()).unwrap_or(false) {
     return Err("archive did not contain llama-mtmd-cli".into());
   }
-  write_runtime_stamp(base, runtime);
-  Ok(())
+  write_runtime_stamp(base, runtime)
 }
 
 async fn download_asset(
@@ -2622,6 +2618,51 @@ mod tests {
     assert_eq!(read_runtime_stamp(&current).as_deref(), Some("current"));
   }
 
+  pub(super) fn stage_test_cli(path: &Path, stamp: &str) {
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, b"test runtime").unwrap();
+    fs::write(path.with_file_name(RUNTIME_STAMP_FILE), stamp).unwrap();
+    #[cfg(unix)] {
+      use std::os::unix::fs::PermissionsExt;
+      fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+  }
+
+  #[test]
+  fn runtime_upgrade_keeps_offline_dictation_until_a_verified_replacement_exists() {
+    let temp = tempfile::tempdir().unwrap();
+    let base = temp.path().join("local-asr");
+    for a in MODEL_ASSETS {
+      let path = base.join(a.rel_path);
+      fs::create_dir_all(path.parent().unwrap()).unwrap();
+      fs::File::create(path).unwrap().set_len(a.size).unwrap();
+    }
+    let current = runtime_cli_path(&base, Runtime::Cpu);
+    let previous = base.join("bin/b9960").join(current.file_name().unwrap());
+    let hash = match llama_zip_asset().rel_path {
+      "llama-macos-arm64.tar.gz" => "7a8c6b6ae3395e15b5cc330ed2938cc0aa4510905db1189658fd022035734b48",
+      "llama-macos-x64.tar.gz" => "d42000ae003fd61d7db50997af0e80f421524e30b534856c66573d064a478c1d",
+      "llama-win-x64.zip" => "795333e29cedf9f9ef9ae91324bfa423e338d39d75cc63a8dd76d1686c32ced6",
+      "llama-linux-x64.tar.gz" => "542732e344420ff904c1d72acfeef6341f509232c5d131809421943235a818a2",
+      _ => unreachable!(),
+    };
+    stage_test_cli(&previous, hash);
+    cleanup_legacy_assets_at(temp.path()).unwrap();
+    assert!(previous.exists());
+    assert!(assets_ready_at(&base));
+    assert_eq!(model_status_at(&base, false).state, "ready");
+
+    stage_test_cli(&current, "incomplete extraction");
+    cleanup_legacy_assets_at(temp.path()).unwrap();
+    assert!(previous.exists());
+    fs::write(previous.with_file_name(RUNTIME_STAMP_FILE), "wrong platform").unwrap();
+    assert!(!assets_ready_at(&base));
+    stage_test_cli(&current, llama_zip_asset().sha256);
+    assert!(assets_ready_at(&base));
+    cleanup_legacy_assets_at(temp.path()).unwrap();
+    assert!(!previous.exists());
+  }
+
   #[test]
   fn worker_identity_rejects_model_and_runtime_switches() {
     assert!(worker_identity_matches(QWEN_LARGE_MODEL_ID, Runtime::Cpu, QWEN_LARGE_MODEL_ID, Runtime::Cpu));
@@ -2647,6 +2688,7 @@ mod tests {
       use std::os::unix::fs::PermissionsExt;
       fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
     }
+    write_runtime_stamp(dir, Runtime::Cpu).unwrap();
     assert!(qwen_ready_at(dir, QWEN_LARGE_MODEL_ID));
     assert!(qwen_ready_at(dir, QWEN_MODEL_ID));
     assert_eq!(qwen_status_at(dir, QWEN_LARGE_MODEL_ID, false).state, "ready");
@@ -2998,6 +3040,7 @@ mod tests {
       fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
+    write_runtime_stamp(dir, Runtime::Cpu).unwrap();
     assert!(assets_ready_for_at(dir, QWEN_MODEL_ID));
     assert!(!assets_ready_for_at(dir, NEMOTRON_MODEL_ID));
   }
@@ -3060,6 +3103,7 @@ mod tests {
       assert!(!assets_ready_at(dir));
       fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
     }
+    write_runtime_stamp(dir, Runtime::Cpu).unwrap();
     assert!(assets_ready_at(dir));
     // Truncate one model -> not ready.
     fs::File::create(dir.join(MODEL_ASSETS[0].rel_path)).unwrap().set_len(1).unwrap();
@@ -3129,7 +3173,7 @@ mod tests {
     fs::create_dir_all(&legacy_onnx).unwrap();
     fs::create_dir_all(current_model.parent().unwrap()).unwrap();
     fs::create_dir_all(&legacy_runtime).unwrap();
-    fs::create_dir_all(&current_runtime).unwrap();
+    stage_test_cli(&current_runtime.join(CLI_NAME), llama_zip_asset().sha256);
     fs::write(legacy_onnx.join("encoder.int8.onnx"), b"old").unwrap();
     fs::write(&current_model, b"current").unwrap();
 
@@ -3190,23 +3234,29 @@ mod tests {
     assert_eq!(LOCAL_INFERENCE.available_permits(), 1);
   }
 
-  #[test]
-  fn stderr_tail_keeps_only_the_latest_clipped_engine_lines() {
-    let mut tail = std::collections::VecDeque::new();
-    for i in 0..(STDERR_TAIL_LINES + 5) {
-      push_stderr_line(&mut tail, &format!("line {i}\r\n"));
-    }
-    assert_eq!(tail.len(), STDERR_TAIL_LINES);
-    assert_eq!(tail.front().unwrap(), "line 5");
-    assert_eq!(tail.back().unwrap(), &format!("line {}", STDERR_TAIL_LINES + 4));
+  #[tokio::test]
+  async fn stderr_diagnostics_never_retain_transcript_or_paths() {
+    let raw = b"DBG: <asr_text>private opening\nprivate continuation with no marker\nunknown failure in /Users/private/clip.wav";
+    let mut code = EngineDiagnostic::Unknown;
+    scan_engine_stderr(&raw[..], |found| code = code.max(found)).await.unwrap();
+    assert_eq!(code.label(), "unknown");
 
-    let mut tail = std::collections::VecDeque::new();
-    push_stderr_line(&mut tail, "   \n");
-    push_stderr_line(&mut tail, &"x".repeat(STDERR_LINE_MAX + 50));
-    // Dictation text must never reach the log, even if the engine echoes it.
-    push_stderr_line(&mut tail, "<asr_text>spoken words");
-    assert_eq!(tail.len(), 1);
-    assert_eq!(tail[0].chars().count(), STDERR_LINE_MAX);
+    // The signature starts in one block and finishes in another, after a
+    // large newline-free run. The path and private suffix never survive.
+    let mut input = vec![b'x'; 1024 * 1024 - 8];
+    input.extend_from_slice(MTMD_BATCH_ASSERT.as_bytes());
+    input.extend_from_slice(b" failed; private trailing words\nfailed to decode audio");
+    scan_engine_stderr(&input[..], |found| code = code.max(found)).await.unwrap();
+    assert_eq!(code.label(), "mtmd_batch_bounds_assert");
+  }
+
+  #[tokio::test]
+  async fn stderr_diagnostics_preserve_the_decode_error_for_one_shot_recovery() {
+    for raw in [b"failed to decode audio".as_slice(), b"failed to decode token"] {
+      let mut code = EngineDiagnostic::Unknown;
+      scan_engine_stderr(raw, |found| code = code.max(found)).await.unwrap();
+      assert_eq!(code, EngineDiagnostic::DecodeFailed);
+    }
   }
 
   #[test]
@@ -3301,6 +3351,7 @@ mod tests {
       use std::os::unix::fs::PermissionsExt;
       fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
     }
+    write_runtime_stamp(dir, Runtime::Cpu).unwrap();
     let s = model_status_at(dir, false);
     assert_eq!(s.state, "ready");
     assert_eq!(s.downloaded_bytes, s.total_bytes);

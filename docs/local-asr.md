@@ -121,7 +121,12 @@ have since been discarded. The figures in this section are what was kept from th
   fetches the archive itself, so there is no quarantine attribute and Gatekeeper never prompts.
 - The extracted runtime is stamped with its archive's sha256
   (`bin/<LLAMA_BUILD>/.typealoud-runtime-sha256`) and re-extracted on mismatch. A CLI being present
-  says nothing about which archive produced it.
+  says nothing about which archive produced it. On upgrade from b9960 the previously verified
+  pack remains usable offline. Startup fetches only replacements for installed packs (CPU and,
+  on Windows, Vulkan), retrying after an hour if offline. No model is downloaded by migration.
+  Once the new archive has passed SHA-256 verification and extraction, new workers use it.
+  A worker serving an existing recording is left alone; only a subsequent launch removes the
+  corresponding old directory, avoiding in-use executable and library races.
 - Assets are separated by canonical model id, and model identity is part of worker reuse, so
   switching between 0.6B and 1.7B never reuses the other model's worker.
 - `SettingsPayload.engine_ready` reports availability independently of selection. For local engines,
@@ -164,13 +169,12 @@ have since been discarded. The figures in this section are what was kept from th
   never gets closed.
 - **One inference at a time.** `LOCAL_INFERENCE` is a one-permit semaphore shared by prewarm and
   decode, so two ~1.3 GB workers never exist at once.
-- **Reuse is a speed bet, not a correctness risk.** Upstream leaves an mtmd media batch on the chat
-  context, so a second decode can be handed the previous audio's embedding; on Windows with stock
-  `b9960`, every decode after the first returned the previous transcript. `repeats_previous` rejects
-  a verbatim repeat, logs `POLLUTION DETECTED`, retires the worker and re-runs one-shot, so a wrong
-  transcript is never inserted. If contamination turns out to be frequent, reuse is slower than
-  retiring after every decode. `real_reuse_contamination_rate` (`#[ignore]`, needs real assets and
-  two clips of different speech) measures it; it has not been run at real chunk cadence.
+- **Reuse guard.** Upstream `b9960` kept an mtmd media batch on the chat context beyond the
+  lifetime of its input. In a Windows alternating-clip test the second decode returned the
+  previous transcript. [llama.cpp #31165](https://github.com/ggml-org/llama.cpp/pull/31165)
+  scoped the batch to a single request; `b12651` contains that fix. Keep `repeats_previous`
+  for defense in depth and for the offline fallback: a verbatim repeat retires the worker and
+  is re-decoded one-shot. `real_reuse_contamination_rate` exercises alternating speech clips.
 - **Deadlines.** First output byte within `15 s + 0.1 s per audio second` (`first_byte_deadline`),
   plus a stall check once output has started (`stall_check`); 180 s per attempt
   (`TRANSCRIBE_TIMEOUT`); 420 s for the whole native request including queueing, startup, fallback
@@ -184,12 +188,12 @@ have since been discarded. The figures in this section are what was kept from th
   dies, on Vulkan0 (`-c 2048`, the app's real context), and the app log showed the same line on a
   GPU worker. A stand-alone harness replaying the chat protocol (`/clear`, `/audio`, `a`) crashed in
   16 of 16 fresh-process runs. On `b12651` the same harness ran 4 x 12 reused decodes on Vulkan0 and
-  2 x 12 on CPU with no crash and correct text. Windows CPU/Vulkan were verified; the macOS and Linux
-  packs for `b12651` only had their URL and sha256 updated (not run). The first Vulkan decode after
-  a cold start took ~14.5 s once (shader compilation), well past the 15 s first-byte limit, so watch
-  for it. Older `b9960` runtime folders are deleted by `cleanup_legacy_assets`.
-  A failed resident worker now logs the engine's last 40 stderr lines (`stderr|`) through the normal
-  logger, so it follows the app's log level and rotation; lines carrying `<asr_text>` are dropped.
+  2 x 12 on CPU with no crash and correct text. On an M4 with the 0.6B model, two distinct
+  synthesized English clips alternated in one worker for eight correct decodes. Neither Intel Mac
+  nor Linux inference was tested in that run. The first Vulkan decode after
+  a cold start took ~14.5 s once (shader compilation); the first-byte budget starts at 15 s and
+  grows with clip length. On failure both worker modes report only fixed diagnostic codes, never raw engine stderr;
+  see [dictation-recovery.md](dictation-recovery.md).
 
 ## Partial text is progress, not streaming
 
