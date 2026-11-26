@@ -104,8 +104,8 @@ have since been discarded. The figures in this section are what was kept from th
 ## Assets and runtime
 
 - Nothing ships in the installer. Assets download on demand into `<app-data>/local-asr/`. For 0.6B
-  that is `Qwen3-ASR-0.6B-Q8_0.gguf` (804,749,248 B) plus `mmproj-Qwen3-ASR-0.6B-Q8_0.gguf`
-  (214,392,480 B), about 972 MB, plus the llama.cpp archive. The official repo has no Q4 variant.
+  that is `Qwen3-ASR-0.6B-Q8_0.gguf` (804,749,536 B) plus `mmproj-Qwen3-ASR-0.6B-Q8_0.gguf`
+  (214,392,544 B), about 972 MB, plus the llama.cpp archive. The official repo has no Q4 variant.
 - Keep 1.7B at Q8_0. Measured 2026-11-20 on an M4 with the app's one-shot arguments: 200 real
   dictation clips (200 different sessions, 46 min, 10,289 characters), the 1.7B language model
   quantized from the official bf16 file with llama-quantize, the Q8_0 mmproj in every run. Character
@@ -117,6 +117,16 @@ have since been discarded. The figures in this section are what was kept from th
   it wrote an unrelated sentence about 西游记; Q5_K_M invented a different sentence on the same clip.
   An invented sentence is the worst failure for dictation, so neither saves enough memory to be worth
   it. 0.6B was not tested at lower bits.
+- Both Qwen sizes pin the GGUF conversion separately on Hugging Face and ModelScope. A new
+  installation downloads the current pair (decoder and audio projector) and verifies both SHA-256
+  digests. An existing complete pair from the previous conversion stays usable offline. Final
+  files are recognized by their paired sizes, after verification at download time. Repairing an
+  incomplete pair reuses only current files. Resumable model downloads include the expected digest
+  in the partial filename, so a new conversion never appends to bytes from an old one.
+- Conversion check (2026-11-26, llama.cpp b12651 on macOS): on the same 32 real clips (555 s)
+  and six scripted clips, old and new 0.6B produced identical text; 1.7B differed only in
+  punctuation on one real clip. Both sizes also matched their previous conversion on six inputs
+  in a resident worker. This checks compatibility, not a general accuracy improvement.
 - Downloads resume with HTTP Range, keep the `.part` file on cancel, and are sha256-checked. The app
   fetches the archive itself, so there is no quarantine attribute and Gatekeeper never prompts.
 - The extracted runtime is stamped with its archive's sha256

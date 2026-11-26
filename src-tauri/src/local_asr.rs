@@ -39,8 +39,7 @@ pub fn normalize_local_model_id(model: &str) -> &'static str {
 pub const LLAMA_BUILD: &str = "b12651";
 
 pub struct Asset {
-  /// Final location under local_asr_dir(); doubles as the download's .part
-  /// sibling name. Forward slashes are fine in PathBuf::join on Windows.
+  /// Final location under local_asr_dir(). Forward slashes work on Windows.
   pub rel_path: &'static str,
   /// Try in order (mirror fallback); byte-identical across sources. Listed
   /// global-first; `ordered_urls` moves mainland-China mirrors to the front
@@ -52,62 +51,87 @@ pub struct Asset {
   pub sha256: &'static str,
 }
 
-pub const MODEL_ASSETS: &[Asset] = &[
+impl Asset {
+  fn part_path(&self, dir: &Path) -> PathBuf {
+    // Only models share final paths across GGUF conversions; keep runtime staging unchanged.
+    if self.rel_path.starts_with("models/") {
+      dir.join(format!("{}.{}.part", self.rel_path, self.sha256))
+    } else {
+      dir.join(format!("{}.part", self.rel_path))
+    }
+  }
+}
+
+pub const MODEL_ASSETS: &[Asset; 2] = &[
   Asset {
     rel_path: "models/Qwen3-ASR-0.6B-Q8_0.gguf",
-    // ModelScope mirrors this repo (probed 2026-07-13, HTTP 200, identical
-    // X-Linked-Etag). Hugging Face is unreachable from mainland China, where
-    // `ordered_urls` tries ModelScope first; everywhere else HF leads.
     urls: &[
-      "https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/main/Qwen3-ASR-0.6B-Q8_0.gguf",
-      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/master/Qwen3-ASR-0.6B-Q8_0.gguf",
+      "https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/b98bf4381df3b400b929dcaff0dc83b6dafe221b/Qwen3-ASR-0.6B-Q8_0.gguf",
+      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/e91f54aac13fec518ea926331b1fb660f19b5031/Qwen3-ASR-0.6B-Q8_0.gguf",
     ],
     bundled: None,
-    size: 804_749_248,
-    sha256: "bca259818b50ca7c4c05e9bdb35a5dc04fa039653a6d6f3f0f331f96f6aa1971",
+    size: 804_749_536,
+    sha256: "05c9e10cecb37f6fc0cac0e786195dba82f12c15021f0b8a09473dbf3b6f090d",
   },
   Asset {
     rel_path: "models/mmproj-Qwen3-ASR-0.6B-Q8_0.gguf",
     urls: &[
-      "https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/main/mmproj-Qwen3-ASR-0.6B-Q8_0.gguf",
-      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/master/mmproj-Qwen3-ASR-0.6B-Q8_0.gguf",
+      "https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/b98bf4381df3b400b929dcaff0dc83b6dafe221b/mmproj-Qwen3-ASR-0.6B-Q8_0.gguf",
+      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-0.6B-GGUF/resolve/e91f54aac13fec518ea926331b1fb660f19b5031/mmproj-Qwen3-ASR-0.6B-Q8_0.gguf",
     ],
     bundled: None,
-    size: 214_392_480,
-    sha256: "41a342b5e4c514e968cb756de6cd1b7be39eff43c44c57a2ef5fc6522e36603d",
+    size: 214_392_544,
+    sha256: "3b5e371a03e7d14bc1b5a66f38ff3c5eec3a99b3f96deb72b3814da9adafb16d",
   },
 ];
 
-pub const LARGE_MODEL_ASSETS: &[Asset] = &[
+pub const LARGE_MODEL_ASSETS: &[Asset; 2] = &[
   Asset {
     rel_path: "models/Qwen3-ASR-1.7B-Q8_0.gguf",
-    // Same ModelScope mirror and ordering as the 0.6B assets (probed
-    // 2026-09-29: LFS object path and X-Linked-Etag equal the sha256 below).
     urls: &[
-      "https://huggingface.co/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/main/Qwen3-ASR-1.7B-Q8_0.gguf",
-      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/master/Qwen3-ASR-1.7B-Q8_0.gguf",
+      "https://huggingface.co/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/3b2c29585c2180452ccb14d3b6b58127f352400d/Qwen3-ASR-1.7B-Q8_0.gguf",
+      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/c805fd550277559eeecac313c16f1724c6152122/Qwen3-ASR-1.7B-Q8_0.gguf",
     ],
     bundled: None,
-    size: 2_165_034_944,
-    sha256: "58e22d0532d4eacaf034cfac17a6fed159f37c41390c710186783be439d1fc57",
+    size: 2_165_035_232,
+    sha256: "cd5f5ce9d7c9c03ff47d54d7f2726e63a39e61e3001640c5d08b6e4d3aed1e6d",
   },
   Asset {
     rel_path: "models/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf",
     urls: &[
-      "https://huggingface.co/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/main/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf",
-      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/master/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf",
+      "https://huggingface.co/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/3b2c29585c2180452ccb14d3b6b58127f352400d/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf",
+      "https://modelscope.cn/models/ggml-org/Qwen3-ASR-1.7B-GGUF/resolve/c805fd550277559eeecac313c16f1724c6152122/mmproj-Qwen3-ASR-1.7B-Q8_0.gguf",
     ],
     bundled: None,
-    size: 355_709_344,
-    sha256: "46c1d533af3f354ceb37ce855dbceff7da7fa7cf1e6a523df3b13440bd164c0d",
+    size: 355_709_376,
+    sha256: "24eaf9a96fa94fe36ed0c1de68d44cccdb3f2229ee614e5b1b5bab951bc37883",
   },
 ];
 
-fn qwen_assets(model: &str) -> &'static [Asset] {
+fn qwen_assets(model: &str) -> &'static [Asset; 2] {
   if normalize_local_model_id(model) == QWEN_LARGE_MODEL_ID {
     LARGE_MODEL_ASSETS
   } else {
     MODEL_ASSETS
+  }
+}
+
+// Final files were verified before rename. Keep a complete previously shipped pair
+// offline, but never mix its conversions with a newly downloaded file.
+fn qwen_files_present(dir: &Path, model: &str) -> [bool; 2] {
+  let assets = qwen_assets(model);
+  let sizes = assets.each_ref().map(|asset| {
+    fs::metadata(dir.join(asset.rel_path)).ok().filter(|m| m.is_file()).map(|m| m.len())
+  });
+  let previous = if normalize_local_model_id(model) == QWEN_LARGE_MODEL_ID {
+    [2_165_034_944, 355_709_344]
+  } else {
+    [804_749_248, 214_392_480]
+  };
+  if sizes == previous.map(Some) {
+    [true, true]
+  } else {
+    std::array::from_fn(|i| sizes[i] == Some(assets[i].size))
   }
 }
 
@@ -357,9 +381,7 @@ fn installed_runtime_is_current(base: &Path) -> bool {
 }
 
 fn models_ready_at(dir: &Path) -> bool {
-  MODEL_ASSETS.iter().all(|a| {
-    fs::metadata(dir.join(a.rel_path)).map(|m| m.len() == a.size).unwrap_or(false)
-  })
+  qwen_files_present(dir, QWEN_MODEL_ID) == [true, true]
 }
 
 fn local_asr_command(program: PathBuf) -> tokio::process::Command {
@@ -387,12 +409,7 @@ pub fn assets_ready_at(dir: &Path) -> bool {
 }
 
 fn qwen_ready_at(dir: &Path, model: &str) -> bool {
-  let models_ok = qwen_assets(model).iter().all(|asset| {
-    fs::metadata(dir.join(asset.rel_path))
-      .map(|metadata| metadata.is_file() && metadata.len() == asset.size)
-      .unwrap_or(false)
-  });
-  models_ok && usable_cli(dir, Runtime::Cpu).is_some()
+  qwen_files_present(dir, model) == [true, true] && usable_cli(dir, Runtime::Cpu).is_some()
 }
 
 #[cfg(test)]
@@ -2262,14 +2279,12 @@ fn qwen_status_at(dir: &Path, model: &str, downloading: bool) -> ModelStatus {
   let zip = llama_zip_asset();
   // Model files count by exact size; the zip counts as fully downloaded once
   // the extracted CLI exists (the archive is removed after extraction).
-  for a in qwen_assets(model) {
-    let got = fs::metadata(dir.join(a.rel_path)).map(|m| m.len()).unwrap_or(0);
-    if got == a.size {
+  for (a, present) in qwen_assets(model).iter().zip(qwen_files_present(dir, model)) {
+    if present {
       downloaded += a.size;
     } else {
       complete = false;
-      downloaded += got.min(a.size);
-      if let Ok(m) = fs::metadata(dir.join(format!("{}.part", a.rel_path))) {
+      if let Ok(m) = fs::metadata(a.part_path(dir)) {
         downloaded += m.len().min(a.size);
       }
     }
@@ -2321,8 +2336,10 @@ async fn download_qwen_model(model: &str, app: tauri::AppHandle, cancel: Cancell
   let report = |downloaded: u64| emit_progress(model, &app, "downloading", downloaded, None);
 
   let mut done: u64 = 0;
-  for a in qwen_assets(model) {
-    if fs::metadata(dir.join(a.rel_path)).map(|m| m.len() == a.size).unwrap_or(false) {
+  for (a, present) in qwen_assets(model).iter().zip(qwen_files_present(&dir, model)) {
+    // Older app versions used unversioned partials, which cannot be resumed safely.
+    let _ = fs::remove_file(dir.join(format!("{}.part", a.rel_path)));
+    if present {
       done += a.size;
       continue;
     }
@@ -2429,7 +2446,7 @@ async fn download_asset(
   cancel: &CancellationToken,
   done_bytes: u64,
 ) -> Result<(), String> {
-  let part_path = dir.join(format!("{}.part", asset.rel_path));
+  let part_path = asset.part_path(dir);
   if let Some(parent) = part_path.parent() {
     fs::create_dir_all(parent).map_err(|e| e.to_string())?;
   }
@@ -2567,7 +2584,7 @@ fn delete_qwen_model(model: &str) -> Result<(), String> {
 fn delete_qwen_assets_at(dir: &Path, model: &str) -> Result<(), String> {
   // Both Qwen sizes share the runtime. Deleting one must preserve the other.
   for asset in qwen_assets(model) {
-    for path in [dir.join(asset.rel_path), dir.join(format!("{}.part", asset.rel_path))] {
+    for path in [dir.join(asset.rel_path), asset.part_path(dir), dir.join(format!("{}.part", asset.rel_path))] {
       match fs::remove_file(path) {
         Ok(()) => {},
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {},
@@ -2664,6 +2681,69 @@ mod tests {
   }
 
   #[test]
+  fn qwen_refresh_preserves_only_complete_legacy_pairs_and_resumes_current_bytes() {
+    for (model, old, current) in [
+      (QWEN_MODEL_ID, [804_749_248, 214_392_480], [804_749_536, 214_392_544]),
+      (QWEN_LARGE_MODEL_ID, [2_165_034_944, 355_709_344], [2_165_035_232, 355_709_376]),
+    ] {
+      let temp = tempfile::tempdir().unwrap();
+      let dir = temp.path();
+      let assets = qwen_assets(model);
+      fs::create_dir(dir.join("models")).unwrap();
+      stage_test_cli(&runtime_cli_path(dir, Runtime::Cpu), llama_zip_asset().sha256);
+      for (asset, size) in assets.iter().zip(old) {
+        fs::File::create(dir.join(asset.rel_path)).unwrap().set_len(size).unwrap();
+      }
+      assert!(qwen_ready_at(dir, model));
+      let status = qwen_status_at(dir, model, false);
+      assert_eq!((status.state.as_str(), status.downloaded_bytes), ("ready", status.total_bytes));
+      assert_eq!(qwen_files_present(dir, model), [true, true]);
+
+      fs::remove_file(dir.join(assets[1].rel_path)).unwrap();
+      let legacy_part = dir.join(format!("{}.part", assets[1].rel_path));
+      fs::write(&legacy_part, [0u8; 23]).unwrap();
+      assert_eq!(qwen_files_present(dir, model), [false, false]);
+      assert_ne!(qwen_status_at(dir, model, false).state, "ready");
+      let part = assets[1].part_path(dir);
+      assert_ne!(legacy_part, part);
+      fs::write(&part, [0u8; 17]).unwrap();
+      assert_eq!(qwen_status_at(dir, model, false).downloaded_bytes, llama_zip_asset().size + 17);
+
+      fs::File::create(dir.join(assets[1].rel_path)).unwrap().set_len(current[1]).unwrap();
+      assert_eq!(qwen_files_present(dir, model), [false, true]);
+      assert!(!qwen_ready_at(dir, model));
+      fs::File::create(dir.join(assets[0].rel_path)).unwrap().set_len(current[0]).unwrap();
+      assert!(qwen_ready_at(dir, model));
+      delete_qwen_assets_at(dir, model).unwrap();
+      assert!(!legacy_part.exists() && !part.exists());
+    }
+  }
+
+  #[tokio::test]
+  async fn completed_qwen_partial_must_verify_before_replacing_a_final_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path();
+    let a = Asset {
+      rel_path: "models/test.gguf", urls: &["https://unused.invalid/"], bundled: None, size: 3,
+      sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    };
+    fs::create_dir(dir.join("models")).unwrap();
+    let final_path = dir.join(a.rel_path);
+    fs::write(&final_path, b"old").unwrap();
+    let client = reqwest::Client::new();
+    let cancel = CancellationToken::new();
+    fs::write(a.part_path(dir), b"bad").unwrap();
+    let err = download_asset(&|_| {}, &client, dir, &a, &cancel, 0).await.unwrap_err();
+    assert!(err.contains("sha256 mismatch"));
+    assert_eq!(fs::read(&final_path).unwrap(), b"old");
+    assert!(!a.part_path(dir).exists());
+    fs::write(a.part_path(dir), b"abc").unwrap();
+    download_asset(&|_| {}, &client, dir, &a, &cancel, 0).await.unwrap();
+    assert_eq!(fs::read(&final_path).unwrap(), b"abc");
+    assert!(!a.part_path(dir).exists());
+  }
+
+  #[test]
   fn worker_identity_rejects_model_and_runtime_switches() {
     assert!(worker_identity_matches(QWEN_LARGE_MODEL_ID, Runtime::Cpu, QWEN_LARGE_MODEL_ID, Runtime::Cpu));
     assert!(!worker_identity_matches(QWEN_MODEL_ID, Runtime::Cpu, QWEN_LARGE_MODEL_ID, Runtime::Cpu));
@@ -2674,7 +2754,7 @@ mod tests {
   #[test]
   fn large_qwen_has_independent_assets_and_deletion() {
     assert_eq!(normalize_local_model_id(QWEN_LARGE_MODEL_ID), QWEN_LARGE_MODEL_ID);
-    assert_eq!(qwen_assets(QWEN_LARGE_MODEL_ID).iter().map(|a| a.size).sum::<u64>(), 2_520_744_288);
+    assert_eq!(qwen_assets(QWEN_LARGE_MODEL_ID).iter().map(|a| a.size).sum::<u64>(), 2_520_744_608);
     let temp = tempfile::tempdir().unwrap();
     let dir = temp.path();
     fs::create_dir_all(dir.join("models")).unwrap();
@@ -2974,6 +3054,10 @@ mod tests {
     for a in MODEL_ASSETS.iter().chain(LARGE_MODEL_ASSETS) {
       assert!(a.urls[0].starts_with("https://huggingface.co/"), "{}", a.rel_path);
       assert!(a.urls.iter().any(|url| is_cn_mirror(url)), "{}", a.rel_path);
+      for url in a.urls {
+        let rev = url.split_once("/resolve/").unwrap().1.split('/').next().unwrap();
+        assert!(rev.len() == 40 && rev.bytes().all(|b| b.is_ascii_hexdigit()), "{url}");
+      }
     }
   }
 
@@ -3326,7 +3410,7 @@ mod tests {
     let p = dir.join(a0.rel_path);
     fs::create_dir_all(p.parent().unwrap()).unwrap();
     fs::File::create(&p).unwrap().set_len(a0.size).unwrap();
-    let part = dir.join(format!("{}.part", MODEL_ASSETS[1].rel_path));
+    let part = MODEL_ASSETS[1].part_path(dir);
     fs::create_dir_all(part.parent().unwrap()).unwrap();
     fs::File::create(&part).unwrap().set_len(1000).unwrap();
     let s = model_status_at(dir, false);

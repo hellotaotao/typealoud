@@ -47,8 +47,8 @@ the user sets up the engine that needs it.
 - **llama.cpp** `b12651` release archives from
   [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp/releases/tag/b12651), under the MIT
   License. On Windows, choosing GPU also downloads upstream's Vulkan archive.
-- **Qwen3-ASR 0.6B and 1.7B**, as the GGUF conversions in `ggml-org/Qwen3-ASR-0.6B-GGUF` and
-  `ggml-org/Qwen3-ASR-1.7B-GGUF` on Hugging Face. The original models,
+- **Qwen3-ASR 0.6B and 1.7B**, as the [0.6B GGUF conversion](https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF/tree/b98bf4381df3b400b929dcaff0dc83b6dafe221b)
+  and [1.7B GGUF conversion](https://huggingface.co/ggml-org/Qwen3-ASR-1.7B-GGUF/tree/3b2c29585c2180452ccb14d3b6b58127f352400d). The original models,
   [Qwen/Qwen3-ASR-0.6B](https://huggingface.co/Qwen/Qwen3-ASR-0.6B) and
   [Qwen/Qwen3-ASR-1.7B](https://huggingface.co/Qwen/Qwen3-ASR-1.7B), are Apache-2.0.
 
