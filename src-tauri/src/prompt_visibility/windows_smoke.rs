@@ -9,11 +9,10 @@ impl Drop for Editor {
   fn drop(&mut self) { let _ = self.0.kill(); let _ = self.0.wait(); }
 }
 
-fn exercise(prompt: &tauri::WebviewWindow) -> anyhow::Result<()> {
+fn exercise(prompt: &tauri::WebviewWindow, tmp: &std::path::Path) -> anyhow::Result<()> {
   use anyhow::ensure;
-  let tmp = tempfile::tempdir()?;
-  let ready = tmp.path().join("ready");
-  let received = tmp.path().join("received");
+  let ready = tmp.join("ready");
+  let received = tmp.join("received");
   let hwnd = prompt.hwnd()?.0;
   let style = || unsafe { GetWindowLongW(hwnd, GWL_STYLE) as u32 };
   let ex = || unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 };
@@ -62,7 +61,7 @@ fn exercise(prompt: &tauri::WebviewWindow) -> anyhow::Result<()> {
     let theme = if index == 0 { "elegant" } else { "midnight" };
     prompt.eval(format!("document.documentElement.dataset.theme='{theme}';document.getElementById('inputPrompt').classList.add('visible','recording')"))?;
     ensure!(unsafe { GetForegroundWindow() } == target, "test editor not foreground before show");
-    super::set_visible(prompt, true)?;
+    crate::prompt_visibility::set_visible(prompt, true)?;
     ensure!(prompt.is_visible()?, "prompt not visible");
     ensure!(style() & (WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX) == 0,
       "native frame/buttons after show: {:08x}", style());
@@ -77,7 +76,7 @@ fn exercise(prompt: &tauri::WebviewWindow) -> anyhow::Result<()> {
       std::thread::sleep(Duration::from_millis(50));
     }
     ensure!(unsafe { GetForegroundWindow() } == target, "show stole foreground");
-    super::set_visible(prompt, false)?;
+    crate::prompt_visibility::set_visible(prompt, false)?;
     ensure!(!prompt.is_visible()? && unsafe { GetForegroundWindow() } == target, "hide changed target");
     // Only dispatch synthetic input to this test's own identified foreground window.
     ensure!(matches!(crate::platform::insert_text("x", false), crate::platform::InsertResult::Inserted { .. }),
@@ -93,9 +92,7 @@ fn exercise(prompt: &tauri::WebviewWindow) -> anyhow::Result<()> {
   Ok(())
 }
 
-#[test]
-#[ignore = "uses a dedicated interactive Windows desktop and synthetic input"]
-fn configured_webview_preserves_external_editor() {
+pub fn run(tmp: std::path::PathBuf) {
   assert_eq!(std::env::var("TYPEALOUD_TEST_DESKTOP").as_deref(), Ok("isolated"));
   let mut context = tauri::generate_context!();
   context.config_mut().identifier = "com.tao.typealoud.test-prompt".into();
@@ -115,8 +112,8 @@ fn configured_webview_preserves_external_editor() {
       eprintln!("configured HWND before repair: style={:08x} ex={:08x}", unsafe {
         GetWindowLongW(hwnd, GWL_STYLE) as u32
       }, unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 });
-      let init = super::initialize(&prompt);
-      let (app, tx, loaded) = (app.clone(), tx.clone(), loaded.clone());
+      let init = crate::prompt_visibility::initialize(&prompt);
+      let (app, tx, loaded, tmp) = (app.clone(), tx.clone(), loaded.clone(), tmp.clone());
       std::thread::spawn(move || {
         let result = (|| -> anyhow::Result<()> {
           init?;
@@ -125,7 +122,7 @@ fn configured_webview_preserves_external_editor() {
             anyhow::ensure!(Instant::now() < end, "WebView2 page never finished loading");
             std::thread::sleep(Duration::from_millis(50));
           }
-          exercise(&prompt)
+          exercise(&prompt, &tmp)
         })();
         let _ = tx.send(result);
         app.exit(0);

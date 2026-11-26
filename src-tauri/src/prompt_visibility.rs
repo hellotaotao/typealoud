@@ -173,6 +173,3 @@ mod tests {
     }
   }
 }
-
-#[cfg(all(windows, test))]
-mod windows_smoke;

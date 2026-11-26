@@ -92,11 +92,11 @@ jobs:
 
       - name: Test the configured Windows recording overlay against a separate editor
         if: matrix.label == 'Windows'
-        timeout-minutes: 3
+        timeout-minutes: 8
         working-directory: src-tauri
         env:
           TYPEALOUD_TEST_DESKTOP: isolated
-        run: cargo test --lib configured_webview_preserves_external_editor -- --ignored --nocapture
+        run: cargo test --bin typealoud --features windows-desktop-test configured_webview_preserves_external_editor -- --ignored --nocapture
 
       - name: Build (bundles for this host)
         run: npm run tauri -- build --target ${{ matrix.target }}
