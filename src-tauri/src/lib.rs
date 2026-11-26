@@ -176,6 +176,13 @@ pub fn run() {
           .build()
       };
       app.handle().plugin(log_plugin)?;
+      #[cfg(windows)]
+      if let Some(prompt) = app.get_webview_window("input-prompt") {
+        if let Err(error) = prompt_visibility::initialize(&prompt) {
+          // Each show retries the style repair; do not block the main app.
+          log::warn!("prompt: initializing Windows frame failed: {error}");
+        }
+      }
       hardware::local_tier();
       #[cfg(windows)]
       platform::log_startup_task_state();

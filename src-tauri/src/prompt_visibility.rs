@@ -20,14 +20,57 @@ pub(crate) fn set_visible(window: &WebviewWindow, visible: bool) -> tauri::Resul
   })
 }
 
+// Called on the UI thread after Tauri creates the hidden WebView2 host.
+#[cfg(windows)]
+pub(crate) fn initialize(prompt: &WebviewWindow) -> tauri::Result<()> {
+  use windows_sys::Win32::UI::WindowsAndMessaging::*;
+  let hwnd = prompt.hwnd()?.0;
+  if repair_frame_styles(hwnd)? {
+    let flags = SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE;
+    if unsafe { SetWindowPos(hwnd, std::ptr::null_mut(), 0, 0, 0, 0, flags) } == 0 {
+      return Err(std::io::Error::last_os_error().into());
+    }
+  }
+  Ok(())
+}
+
+#[cfg(windows)]
+fn repair_frame_styles(hwnd: windows_sys::Win32::Foundation::HWND) -> std::io::Result<bool> {
+  use windows_sys::Win32::{Foundation::{GetLastError, SetLastError}, UI::WindowsAndMessaging::*};
+
+  // tao 0.37 leaves WS_CAPTION | WS_SYSMENU and WS_EX_WINDOWEDGE on undecorated
+  // top-level windows. It normally hides the non-client frame via WM_NCCALCSIZE.
+  // Set a real popup style on this HWND only; preserve composition and hit testing.
+  let mut changed = false;
+  for (slot, remove, add) in [
+    (GWL_STYLE, WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX, WS_POPUP),
+    (GWL_EXSTYLE, WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_STATICEDGE | WS_EX_DLGMODALFRAME, WS_EX_NOACTIVATE),
+  ] {
+    unsafe {
+      SetLastError(0);
+      let old = GetWindowLongW(hwnd, slot) as u32;
+      if old == 0 && GetLastError() != 0 { return Err(std::io::Error::last_os_error()); }
+      let new = (old & !remove) | add;
+      if new != old {
+        SetLastError(0);
+        if SetWindowLongW(hwnd, slot, new as i32) == 0 && GetLastError() != 0 {
+          return Err(std::io::Error::last_os_error());
+        }
+        changed = true;
+      }
+    }
+  }
+  Ok(changed)
+}
+
 #[cfg(windows)]
 fn set_native_visibility(hwnd: windows_sys::Win32::Foundation::HWND, visible: bool) -> std::io::Result<()> {
   use windows_sys::Win32::UI::WindowsAndMessaging::{
-    SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE,
+    SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE,
   };
 
   // Use this helper for both directions: tao caches visibility, but is_visible()
-  // queries the HWND. The prompt's top-level styles are fixed at creation.
+  // queries the HWND.
   if !visible {
     // Preserve normal activation handoff if the user clicked the Copy button.
     // ShowWindow returns the previous visibility, not a success indicator.
@@ -36,7 +79,8 @@ fn set_native_visibility(hwnd: windows_sys::Win32::Foundation::HWND, visible: bo
   }
   // tao's SW_SHOW would activate the prompt. Raise it above other topmost
   // windows without moving the caret out of the application being dictated into.
-  let flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW;
+  let mut flags = SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW;
+  if repair_frame_styles(hwnd)? { flags |= SWP_FRAMECHANGED; }
   let ok = unsafe { SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags) };
   if ok == 0 { Err(std::io::Error::last_os_error()) } else { Ok(()) }
 }
@@ -129,3 +173,6 @@ mod tests {
     }
   }
 }
+
+#[cfg(all(windows, test))]
+mod windows_smoke;
