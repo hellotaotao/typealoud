@@ -20,6 +20,7 @@ fn exercise(prompt: &tauri::WebviewWindow, tmp: &std::path::Path) -> anyhow::Res
   ensure!(style() & WS_CAPTION == 0 && ex() & WS_EX_WINDOWEDGE == 0, "initial native frame");
 
   prompt.set_position(tauri::PhysicalPosition::new(160, 150))?;
+  prompt.eval("initI18n('en');window.__testPrompt = new VoiceInputPrompt()")?;
   let _editor = Editor(Command::new("powershell.exe").args(["-NoLogo", "-NoProfile", "-STA",
     "-NonInteractive", "-Command", include_str!("windows_test_editor.ps1")])
     .env("TYPEALOUD_TEST_READY", &ready).env("TYPEALOUD_TEST_TEXT", &received)
@@ -89,6 +90,31 @@ fn exercise(prompt: &tauri::WebviewWindow, tmp: &std::path::Path) -> anyhow::Res
     }
   }
 
+  // Use the real recovery button and IPC handler; click through Windows rather
+  // than invoking the DOM click method (which bypasses native hit testing).
+  crate::prompt_visibility::set_visible(prompt, true)?;
+  let marker = format!("copy-{}", uuid::Uuid::new_v4());
+  let (tx, rx) = mpsc::channel();
+  prompt.eval_with_callback(format!(r#"(() => {{
+    window.__testPrompt.showInsertFailed('{marker}');
+    const r = document.getElementById('copyBtn').getBoundingClientRect();
+    return [Math.round((r.x + r.width/2)*devicePixelRatio), Math.round((r.y + r.height/2)*devicePixelRatio)];
+  }})()"#), move |r| { let _ = tx.send(r); })?;
+  let [x, y]: [i32; 2] = serde_json::from_str(&rx.recv_timeout(Duration::from_secs(5))?)?;
+  let mut pt = windows_sys::Win32::Foundation::POINT { x, y };
+  unsafe {
+    use windows_sys::Win32::{Graphics::Gdi::ClientToScreen, UI::Input::KeyboardAndMouse::*};
+    ensure!(ClientToScreen(hwnd, &mut pt) != 0);
+    ensure!(GetAncestor(WindowFromPoint(pt), GA_ROOT) == hwnd, "button is not hit-testable");
+    ensure!(SetCursorPos(pt.x, pt.y) != 0);
+    mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+    mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+  }
+  let end = Instant::now() + Duration::from_secs(5);
+  while arboard::Clipboard::new().and_then(|mut c| c.get_text()).ok().as_ref() != Some(&marker) {
+    ensure!(Instant::now() < end, "real click did not copy the recovery text");
+    std::thread::sleep(Duration::from_millis(50));
+  }
   Ok(())
 }
 
@@ -100,7 +126,11 @@ pub fn run(tmp: std::path::PathBuf) {
   let (tx, rx) = mpsc::channel();
   let loaded = Arc::new(AtomicBool::new(false));
   let on_load = loaded.clone();
-  let app = tauri::Builder::default().any_thread().on_page_load(move |w, p| {
+  let app = tauri::Builder::default().any_thread()
+    // Construct one observable instance on the actual page, without asking for a mic.
+    .append_invoke_initialization_script(";window.__typeAloudInputPromptStarted = true;")
+    .invoke_handler(tauri::generate_handler![crate::commands::copy_to_clipboard])
+    .on_page_load(move |w, p| {
     if w.label() == "input-prompt" && p.event() == tauri::webview::PageLoadEvent::Finished {
       on_load.store(true, Ordering::Release);
     }
