@@ -20,7 +20,6 @@ fn exercise(prompt: &tauri::WebviewWindow, tmp: &std::path::Path) -> anyhow::Res
   ensure!(style() & WS_CAPTION == 0 && ex() & WS_EX_WINDOWEDGE == 0, "initial native frame");
 
   prompt.set_position(tauri::PhysicalPosition::new(160, 150))?;
-  prompt.eval("initI18n('en');window.__testPrompt = new VoiceInputPrompt()")?;
   let _editor = Editor(Command::new("powershell.exe").args(["-NoLogo", "-NoProfile", "-STA",
     "-NonInteractive", "-Command", include_str!("windows_test_editor.ps1")])
     .env("TYPEALOUD_TEST_READY", &ready).env("TYPEALOUD_TEST_TEXT", &received)
@@ -51,7 +50,6 @@ fn exercise(prompt: &tauri::WebviewWindow, tmp: &std::path::Path) -> anyhow::Res
     ensure!(Instant::now() < end, "test editor background not visible beneath prompt");
     std::thread::sleep(Duration::from_millis(50));
   }
-
 
   // Reintroduce the caption between holds, as a framework style rewrite could.
   // Only the show path (not initialization) can repair it this time.
@@ -95,12 +93,20 @@ fn exercise(prompt: &tauri::WebviewWindow, tmp: &std::path::Path) -> anyhow::Res
   crate::prompt_visibility::set_visible(prompt, true)?;
   let marker = format!("copy-{}", uuid::Uuid::new_v4());
   let (tx, rx) = mpsc::channel();
-  prompt.eval_with_callback(format!(r#"(() => {{
-    window.__testPrompt.showInsertFailed('{marker}');
+  // Use the same page-entry script the app injects on load. WebView2 eval
+  // must not assume top-level lexical bindings from an earlier script exist.
+  prompt.eval_with_callback(format!(r#"(() => {{ try {{
+    {entry}
+    initI18n("en");
+    const ui = new VoiceInputPrompt();
+    ui.showInsertFailed('{marker}');
     const r = document.getElementById('copyBtn').getBoundingClientRect();
     return [Math.round((r.x + r.width/2)*devicePixelRatio), Math.round((r.y + r.height/2)*devicePixelRatio)];
-  }})()"#), move |r| { let _ = tx.send(r); })?;
-  let [x, y]: [i32; 2] = serde_json::from_str(&rx.recv_timeout(Duration::from_secs(5))?)?;
+  }} catch(e) {{ return String(e) + " at " + location.href; }} }})()"#,
+    entry = crate::INPUT_PROMPT_ENTRY_SCRIPT), move |r| { let _ = tx.send(r); })?;
+  let location = rx.recv_timeout(Duration::from_secs(5))?;
+  let [x, y]: [i32; 2] = serde_json::from_str(&location)
+    .map_err(|e| anyhow::anyhow!("recovery button location: {location} ({e})"))?;
   let mut pt = windows_sys::Win32::Foundation::POINT { x, y };
   unsafe {
     use windows_sys::Win32::{Graphics::Gdi::ClientToScreen, UI::Input::KeyboardAndMouse::*};
@@ -131,7 +137,7 @@ pub fn run(tmp: std::path::PathBuf) {
     .append_invoke_initialization_script(";window.__typeAloudInputPromptStarted = true;")
     .invoke_handler(tauri::generate_handler![crate::commands::copy_to_clipboard])
     .on_page_load(move |w, p| {
-    if w.label() == "input-prompt" && p.event() == tauri::webview::PageLoadEvent::Finished {
+    if w.label() == "input-prompt" && p.url().path().ends_with("/input-prompt.html") && p.event() == tauri::webview::PageLoadEvent::Finished {
       on_load.store(true, Ordering::Release);
     }
   }).build(context).unwrap();
